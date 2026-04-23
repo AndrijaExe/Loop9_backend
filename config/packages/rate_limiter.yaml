@@ -1,0 +1,12 @@
+framework:
+    rate_limiter:
+        game_chat:
+            policy: token_bucket
+            limit: 20
+            rate:
+                interval: '1 minute'
+                amount: 20
+        player_daily_quota:
+            policy: fixed_window
+            limit: '%env(int:GAME_DAILY_PLAYER_QUOTA)%'
+            interval: '1 day'

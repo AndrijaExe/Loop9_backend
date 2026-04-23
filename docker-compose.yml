@@ -1,0 +1,29 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: loop9-backend
+    ports:
+      - "8080:80"
+    environment:
+      APP_ENV: ${APP_ENV:-prod}
+      APP_DEBUG: ${APP_DEBUG:-0}
+      GAME_API_TOKEN: ${GAME_API_TOKEN:-change-this-token}
+      GAME_DAILY_PLAYER_QUOTA: ${GAME_DAILY_PLAYER_QUOTA:-120}
+      AI_CHAT_COMPLETIONS_URL: ${AI_CHAT_COMPLETIONS_URL:-https://api.openai.com/v1/chat/completions}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-gpt-5.4-mini}
+      AI_SYSTEM_PROMPT: ${AI_SYSTEM_PROMPT:-}
+      AI_TLS_VERIFY: ${AI_TLS_VERIFY:-true}
+      AI_FALLBACK_ENABLED: ${AI_FALLBACK_ENABLED:-false}
+      AI_FALLBACK_CHAT_COMPLETIONS_URL: ${AI_FALLBACK_CHAT_COMPLETIONS_URL:-}
+      AI_FALLBACK_API_KEY: ${AI_FALLBACK_API_KEY:-}
+      AI_FALLBACK_MODEL: ${AI_FALLBACK_MODEL:-}
+      AI_FALLBACK_TLS_VERIFY: ${AI_FALLBACK_TLS_VERIFY:-true}
+      AI_FALLBACK2_ENABLED: ${AI_FALLBACK2_ENABLED:-false}
+      AI_FALLBACK2_CHAT_COMPLETIONS_URL: ${AI_FALLBACK2_CHAT_COMPLETIONS_URL:-}
+      AI_FALLBACK2_API_KEY: ${AI_FALLBACK2_API_KEY:-}
+      AI_FALLBACK2_MODEL: ${AI_FALLBACK2_MODEL:-}
+      AI_FALLBACK2_TLS_VERIFY: ${AI_FALLBACK2_TLS_VERIFY:-true}
+    restart: unless-stopped

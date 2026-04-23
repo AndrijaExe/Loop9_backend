@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Loop9 Backend Docs</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --text: #e6edf3;
+      --muted: #9da7b3;
+      --accent: #4cc9f0;
+      --ok: #57cc99;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: radial-gradient(circle at top right, #1f2a38 0%, var(--bg) 55%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 48px 20px 80px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid #2b3240;
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+
+    h1, h2 {
+      margin-top: 0;
+      line-height: 1.25;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 8px;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    code {
+      background: #0f141b;
+      border: 1px solid #273244;
+      padding: 2px 6px;
+      border-radius: 6px;
+      color: var(--accent);
+    }
+
+    ul {
+      padding-left: 20px;
+      margin: 10px 0;
+    }
+
+    .ok {
+      color: var(--ok);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <h1>Loop9 Backend</h1>
+      <p class="muted">Symfony 8 API for game chat pipeline with rate limiting and AI provider fallback routing.</p>
+      <p class="ok">Deployment status: managed by GitHub Actions on push to main.</p>
+    </section>
+
+    <section class="card">
+      <h2>API Endpoint</h2>
+      <p><code>POST /api/chat</code></p>
+      <ul>
+        <li>Auth header: <code>X-Game-Token</code></li>
+        <li>Quota key: <code>player_id</code> or <code>X-Player-Id</code></li>
+        <li>Output format: game-ready assistant message payload</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Runtime Notes</h2>
+      <ul>
+        <li>Global API error envelope via exception subscriber</li>
+        <li>CORS handling for <code>/api/*</code> routes</li>
+        <li>Provider ordering depends on <code>loop_index</code></li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
