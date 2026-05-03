@@ -110,6 +110,11 @@ U projektu postoje 2 workflow-a:
   - Build staticke dokumentacije iz `docs/`
   - Deploy na GitHub Pages
 
+- `.github/workflows/deploy-render.yml`
+  - Run na svaki push na `main` (ili manual `workflow_dispatch`)
+  - Pokrece lint korake (`lint:container`, `lint:yaml`)
+  - Ako sve prodje, okida Render deploy hook
+
 ## Aktivacija GitHub Pages
 
 1. Pushuj fajlove na GitHub repo.
@@ -120,6 +125,20 @@ U projektu postoje 2 workflow-a:
 Nakon deploy-a, dokumentacija je dostupna na:
 
 - `https://<username>.github.io/<repo>/`
+
+## Backend auto deploy na Render
+
+GitHub Pages ostaje za dokumentaciju (`docs/`), dok backend ide na Render.
+
+1. Na Render-u kreiraj Web Service iz ovog GitHub repoa.
+2. U Render-u otvori service settings i kopiraj **Deploy Hook URL**.
+3. U GitHub repou dodaj secret:
+   - `RENDER_DEPLOY_HOOK_URL` = Render deploy hook URL
+4. Push na `main` ce automatski:
+   - pokrenuti verifikaciju
+   - okinuti deploy na Render
+5. U Unreal/igri postavi endpoint na Render URL:
+   - `https://<tvoj-render-servis>.onrender.com/api/chat`
 
 ## Environment promenljive
 
