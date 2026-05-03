@@ -1,4 +1,6 @@
 {
+    "name": "loop9/backend",
+    "description": "Symfony backend for Loop9 game chat and AI pipeline.",
     "type": "project",
     "license": "proprietary",
     "minimum-stability": "stable",
