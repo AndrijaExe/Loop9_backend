@@ -178,6 +178,7 @@ GitHub Pages ostaje za dokumentaciju (`docs/`), dok backend ide na Render.
    - `REDIS_URL` = internal Redis URL sa Render-a
    - `TRUSTED_PROXIES` = `127.0.0.1,REMOTE_ADDR` (Render proxy prosleđuje pravi IP kroz `X-Forwarded-For`)
    - `APP_ENV` = `prod`
+7. U Render service settings postavi **Health Check Path** na `/healthz`.
 
 U `prod` okruženju rate limiter brojači žive u Redis-u, pa kvote prežive restart/deploy
 i rade ispravno i sa više instanci. U `dev`/`test` Redis nije potreban (filesystem/in-memory).
