@@ -2,6 +2,8 @@
 
 Symfony 8 backend za game chat pipeline sa AI provider fallback logikom, rate limiting-om i JSON API endpoint-om.
 
+Kompletan pregled arhitekture (komponente, tokovi zahteva, dijagrami): [ARCHITECTURE.md](ARCHITECTURE.md)
+
 ## Architecture
 
 Hexagonal / DDD-lite layout:
@@ -24,13 +26,29 @@ Hexagonal / DDD-lite layout:
 
 ## API
 
+### POST /api/auth/steam
+
+Menja Steam auth session ticket za kratkotrajni session token. Zahteva konfigurisan
+`STEAM_WEB_API_KEY`, `STEAM_APP_ID` i `SESSION_TOKEN_SECRET` (inače vraća 503).
+
+```json
+{ "ticket": "<hex-encoded steam session ticket>" }
+```
+
+Odgovor:
+
+```json
+{ "token": "v1.....", "expires_at": 1789000000, "player_id": "steam-76561198000000001" }
+```
+
 ### POST /api/chat
 
 Headeri:
 
 - `Content-Type: application/json`
-- `X-Game-Token: <GAME_API_TOKEN>`
-- `X-Player-Id: <player_id>` (alternativno `player_id` u body)
+- `X-Session-Token: <token sa /api/auth/steam>` (preporučeno; identitet igrača se izvodi iz verifikovanog Steam ID-a)
+- ili `X-Game-Token: <GAME_API_TOKEN>` (legacy/dev; može se ugasiti sa `AUTH_ALLOW_GAME_TOKEN=false`)
+- `X-Player-Id: <player_id>` (samo uz `X-Game-Token`; uz session token se ignoriše)
 
 Primer zahteva:
 
@@ -164,6 +182,21 @@ GitHub Pages ostaje za dokumentaciju (`docs/`), dok backend ide na Render.
 U `prod` okruženju rate limiter brojači žive u Redis-u, pa kvote prežive restart/deploy
 i rade ispravno i sa više instanci. U `dev`/`test` Redis nije potreban (filesystem/in-memory).
 
+## Steam auth (za Steam build igre)
+
+Tok: igra uzme Steam auth session ticket → `POST /api/auth/steam` → backend verifikuje
+ticket kod Valve-a (`ISteamUserAuth/AuthenticateUserTicket`) → vrati kratkotrajni potpisani
+token → igra šalje `X-Session-Token` na `/api/chat`. Identitet igrača (`steam-<id64>`) se
+izvodi iz verifikovanog ticket-a, pa se ne može lažirati kroz `player_id`.
+
+Checklist za produkciju:
+
+1. Kupi App ID kroz Steam Direct (partner.steamgames.com).
+2. Napravi **publisher** Web API key i postavi `STEAM_WEB_API_KEY` + `STEAM_APP_ID` na Render-u.
+3. Generiši `SESSION_TOKEN_SECRET` (`openssl rand -hex 32`).
+4. Kad Steam build bude live: `AUTH_ALLOW_GAME_TOKEN=false`, čime deljeni
+   `GAME_API_TOKEN` prestaje da važi (klijent ga više i ne mora imati).
+
 ## Environment promenljive
 
 Najvaznije:
@@ -175,6 +208,11 @@ Najvaznije:
 - `GAME_GLOBAL_DAILY_QUOTA` (default 20000) — ukupan dnevni plafon za ceo servis (kill-switch za AI trošak)
 - `REDIS_URL` — Redis DSN za rate limiter storage (obavezno u `prod`)
 - `TRUSTED_PROXIES` — proxy-ji kojima se veruje za `X-Forwarded-For` (na Render-u: `127.0.0.1,REMOTE_ADDR`)
+- `STEAM_WEB_API_KEY` — Steamworks **publisher** Web API key (partner.steamgames.com → Users & Permissions → Manage Groups → Create WebAPI Key)
+- `STEAM_APP_ID` — App ID igre (za testiranje pre kupovine App ID-a može `480` / Spacewar)
+- `SESSION_TOKEN_SECRET` — tajna za potpisivanje session tokena (`openssl rand -hex 32`)
+- `SESSION_TOKEN_TTL` (default 43200) — trajanje session tokena u sekundama
+- `AUTH_ALLOW_GAME_TOKEN` (default true) — dozvoli legacy `X-Game-Token`; postavi na `false` kad Steam build bude live
 - `AI_CHAT_COMPLETIONS_URL`
 - `AI_API_KEY`
 - `AI_MODEL`

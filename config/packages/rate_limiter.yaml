@@ -30,6 +30,13 @@ framework:
             interval: '30 days'
             cache_pool: rate_limiter.storage
 
+        # Steam ticket exchange attempts per IP (tickets are cheap to spam)
+        auth_steam:
+            policy: fixed_window
+            limit: 10
+            interval: '1 minute'
+            cache_pool: rate_limiter.storage
+
         # Kill-switch: total requests across ALL players per day.
         # Caps worst-case AI spend even if the game token leaks.
         game_global_daily:

@@ -28,22 +28,25 @@ final class ChatController
             return new JsonResponse(null, 204);
         }
 
-        $token = $this->tokenAuthenticator->authenticate($request);
+        $auth = $this->tokenAuthenticator->authenticate($request);
 
         if ($denied = $this->rateLimiter->enforceGlobalDailyQuota()) {
             return $denied;
         }
 
-        if ($denied = $this->rateLimiter->enforceIpLimit($token, $request)) {
+        if ($denied = $this->rateLimiter->enforceIpLimit($auth->scope, $request)) {
             return $denied;
         }
 
-        if ($denied = $this->rateLimiter->enforceIpDailyQuota($token, $request)) {
+        if ($denied = $this->rateLimiter->enforceIpDailyQuota($auth->scope, $request)) {
             return $denied;
         }
 
         $mapped = $this->requestMapper->map($request);
-        $playerId = $this->rateLimiter->resolvePlayerId($mapped['payload'], $request);
+
+        // Session-token auth carries a verified identity; never trust the
+        // client-supplied player_id in that case.
+        $playerId = $auth->playerId ?? $this->rateLimiter->resolvePlayerId($mapped['payload'], $request);
 
         if ($denied = $this->rateLimiter->enforcePlayerDailyQuota($playerId)) {
             return $denied;
