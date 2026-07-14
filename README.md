@@ -206,7 +206,7 @@ Najvaznije:
 - `GAME_DAILY_PLAYER_QUOTA` (default 120) — poruka po `player_id` dnevno
 - `GAME_MONTHLY_PLAYER_QUOTA` (default 2000) — poruka po `player_id` mesečno (~30 dana)
 - `GAME_DAILY_IP_QUOTA` (default 300) — plafon po IP (sprečava rotaciju `player_id`)
-- `GAME_GLOBAL_DAILY_QUOTA` (default 20000) — ukupan dnevni plafon za ceo servis (kill-switch za AI trošak)
+- `GAME_GLOBAL_DAILY_QUOTA` (default 5000) — ukupan dnevni plafon za ceo servis (kill-switch za AI trošak; ~250 igrača/dan, podigni po potrebi)
 - `REDIS_URL` — Redis DSN za rate limiter storage (obavezno u `prod`)
 - `TRUSTED_PROXIES` — proxy-ji kojima se veruje za `X-Forwarded-For` (na Render-u: `127.0.0.1,REMOTE_ADDR`)
 - `STEAM_WEB_API_KEY` — Steamworks **publisher** Web API key (partner.steamgames.com → Users & Permissions → Manage Groups → Create WebAPI Key)
