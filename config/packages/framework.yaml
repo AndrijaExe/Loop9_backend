@@ -2,6 +2,12 @@
 framework:
     secret: '%env(APP_SECRET)%'
 
+    # Behind Render (or any reverse proxy) the real client IP arrives via
+    # X-Forwarded-For; without this, all players share the proxy IP and
+    # rate limits break. REMOTE_ADDR means "trust the immediate peer".
+    trusted_proxies: '%env(TRUSTED_PROXIES)%'
+    trusted_headers: ['x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-port']
+
     # Note that the session will be started ONLY if you read or write from it.
     session: true
 

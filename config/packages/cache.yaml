@@ -1,19 +1,23 @@
 framework:
     cache:
-        # Unique name of your app: used to compute stable namespaces for cache keys.
-        #prefix_seed: your_vendor_name/app_name
+        # Dedicated pool for rate limiter counters. Filesystem by default
+        # (local dev); prod overrides to Redis below so quotas survive
+        # restarts and work across multiple instances.
+        pools:
+            rate_limiter.storage:
+                adapter: cache.adapter.filesystem
 
-        # The "app" cache stores to the filesystem by default.
-        # The data in this cache should persist between deploys.
-        # Other options include:
+when@test:
+    framework:
+        cache:
+            pools:
+                rate_limiter.storage:
+                    adapter: cache.adapter.array
 
-        # Redis
-        #app: cache.adapter.redis
-        #default_redis_provider: redis://localhost
-
-        # APCu (not recommended with heavy random-write workloads as memory fragmentation can cause perf issues)
-        #app: cache.adapter.apcu
-
-        # Namespaced pools use the above "app" backend by default
-        #pools:
-            #my.dedicated.cache: null
+when@prod:
+    framework:
+        cache:
+            pools:
+                rate_limiter.storage:
+                    adapter: cache.adapter.redis
+                    provider: '%env(REDIS_URL)%'

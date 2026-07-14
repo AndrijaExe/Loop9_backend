@@ -31,3 +31,6 @@ jobs:
 
       - name: Lint YAML config
         run: php bin/console lint:yaml config
+
+      - name: Run PHPUnit
+        run: php bin/phpunit

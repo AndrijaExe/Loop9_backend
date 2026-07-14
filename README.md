@@ -2,12 +2,23 @@
 
 Symfony 8 backend za game chat pipeline sa AI provider fallback logikom, rate limiting-om i JSON API endpoint-om.
 
+## Architecture
+
+Hexagonal / DDD-lite layout:
+
+- `src/Domain` — value objects, ports, pure policies/validators (no Symfony/HTTP)
+- `src/Application` — use-case handlers (`SendChatMessageHandler`)
+- `src/Infrastructure` — AI providers (HttpClient), HTTP controllers, auth/rate-limit adapters
+- `src/Shared` — cross-cutting HTTP subscribers (CORS, JSON errors)
+- `config/prompts` — externalized system prompts
+
 ## Stack
 
 - PHP 8.4+
 - Symfony 8
 - Monolog
-- Symfony Rate Limiter
+- Symfony Rate Limiter / HttpClient
+- PHPUnit
 - Docker + Docker Compose
 - GitHub Actions (CI + Pages deploy)
 
@@ -32,13 +43,18 @@ Primer zahteva:
   "ai_stability": 0.8,
   "offtopic": false,
   "state": {
+    "kindness": 1,
+    "suspicion": 0,
     "dependency": 0.2,
-    "disrespect": 0.1,
-    "nervousness": 0.7
+    "player_confidence": 0.8,
+    "repeat_anomaly": false,
+    "anomaly_key": ""
   },
   "anomaly_context": "flicker in hallway"
 }
 ```
+
+`state` matches the Unreal `Loop9BackendChatService` payload (`kindness`/`suspicion` as discrete `-1|0|1`).
 
 Primer odgovora:
 
@@ -75,6 +91,7 @@ php -S 127.0.0.1:8000 -t public
 ```bash
 php bin/console lint:container
 php bin/console lint:yaml config
+composer test
 ```
 
 ## Docker
@@ -139,13 +156,25 @@ GitHub Pages ostaje za dokumentaciju (`docs/`), dok backend ide na Render.
    - okinuti deploy na Render
 5. U Unreal/igri postavi endpoint na Render URL:
    - `https://<tvoj-render-servis>.onrender.com/api/chat`
+6. Na Render-u kreiraj i **Key Value** (Redis) instancu i u Web Service env postavi:
+   - `REDIS_URL` = internal Redis URL sa Render-a
+   - `TRUSTED_PROXIES` = `127.0.0.1,REMOTE_ADDR` (Render proxy prosleđuje pravi IP kroz `X-Forwarded-For`)
+   - `APP_ENV` = `prod`
+
+U `prod` okruženju rate limiter brojači žive u Redis-u, pa kvote prežive restart/deploy
+i rade ispravno i sa više instanci. U `dev`/`test` Redis nije potreban (filesystem/in-memory).
 
 ## Environment promenljive
 
 Najvaznije:
 
 - `GAME_API_TOKEN`
-- `GAME_DAILY_PLAYER_QUOTA`
+- `GAME_DAILY_PLAYER_QUOTA` (default 120) — poruka po `player_id` dnevno
+- `GAME_MONTHLY_PLAYER_QUOTA` (default 2000) — poruka po `player_id` mesečno (~30 dana)
+- `GAME_DAILY_IP_QUOTA` (default 300) — plafon po IP (sprečava rotaciju `player_id`)
+- `GAME_GLOBAL_DAILY_QUOTA` (default 20000) — ukupan dnevni plafon za ceo servis (kill-switch za AI trošak)
+- `REDIS_URL` — Redis DSN za rate limiter storage (obavezno u `prod`)
+- `TRUSTED_PROXIES` — proxy-ji kojima se veruje za `X-Forwarded-For` (na Render-u: `127.0.0.1,REMOTE_ADDR`)
 - `AI_CHAT_COMPLETIONS_URL`
 - `AI_API_KEY`
 - `AI_MODEL`
@@ -153,3 +182,4 @@ Najvaznije:
 - `AI_FALLBACK2_ENABLED`
 
 Za Docker mozes koristiti `.env` ili shell environment pri pokretanju compose-a.
+`docker compose` sada podiže i lokalni `redis` servis (app default `REDIS_URL=redis://redis:6379`).

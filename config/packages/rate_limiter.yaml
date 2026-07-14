@@ -1,12 +1,39 @@
 framework:
     rate_limiter:
+        # Burst protection per game token + client IP
         game_chat:
             policy: token_bucket
             limit: 20
             rate:
                 interval: '1 minute'
                 amount: 20
+            cache_pool: rate_limiter.storage
+
+        # Hard daily ceiling per IP (stops player_id rotation abuse)
+        game_ip_daily:
+            policy: fixed_window
+            limit: '%env(int:GAME_DAILY_IP_QUOTA)%'
+            interval: '1 day'
+            cache_pool: rate_limiter.storage
+
+        # Fair-use daily ceiling per player_id
         player_daily_quota:
             policy: fixed_window
             limit: '%env(int:GAME_DAILY_PLAYER_QUOTA)%'
             interval: '1 day'
+            cache_pool: rate_limiter.storage
+
+        # Fair-use monthly ceiling per player_id
+        player_monthly_quota:
+            policy: fixed_window
+            limit: '%env(int:GAME_MONTHLY_PLAYER_QUOTA)%'
+            interval: '30 days'
+            cache_pool: rate_limiter.storage
+
+        # Kill-switch: total requests across ALL players per day.
+        # Caps worst-case AI spend even if the game token leaks.
+        game_global_daily:
+            policy: fixed_window
+            limit: '%env(int:GAME_GLOBAL_DAILY_QUOTA)%'
+            interval: '1 day'
+            cache_pool: rate_limiter.storage

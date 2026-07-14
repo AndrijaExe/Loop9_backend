@@ -11,6 +11,11 @@ services:
       APP_DEBUG: ${APP_DEBUG:-0}
       GAME_API_TOKEN: ${GAME_API_TOKEN:-change-this-token}
       GAME_DAILY_PLAYER_QUOTA: ${GAME_DAILY_PLAYER_QUOTA:-120}
+      GAME_MONTHLY_PLAYER_QUOTA: ${GAME_MONTHLY_PLAYER_QUOTA:-2000}
+      GAME_DAILY_IP_QUOTA: ${GAME_DAILY_IP_QUOTA:-300}
+      GAME_GLOBAL_DAILY_QUOTA: ${GAME_GLOBAL_DAILY_QUOTA:-20000}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       AI_CHAT_COMPLETIONS_URL: ${AI_CHAT_COMPLETIONS_URL:-https://api.openai.com/v1/chat/completions}
       AI_API_KEY: ${AI_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-gpt-5.4-mini}
@@ -26,4 +31,17 @@ services:
       AI_FALLBACK2_API_KEY: ${AI_FALLBACK2_API_KEY:-}
       AI_FALLBACK2_MODEL: ${AI_FALLBACK2_MODEL:-}
       AI_FALLBACK2_TLS_VERIFY: ${AI_FALLBACK2_TLS_VERIFY:-true}
+    depends_on:
+      - redis
     restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: loop9-redis
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  redis-data:

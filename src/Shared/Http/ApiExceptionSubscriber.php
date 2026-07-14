@@ -13,6 +13,15 @@ use Symfony\Component\HttpKernel\KernelEvents;
 
 final class ApiExceptionSubscriber implements EventSubscriberInterface
 {
+    /**
+     * Only these InvalidArgumentException messages are safe to echo to clients.
+     *
+     * @var list<string>
+     */
+    private const PUBLIC_INVALID_ARGUMENT_MESSAGES = [
+        'Message cannot be empty.',
+    ];
+
     public function __construct(private readonly LoggerInterface $logger)
     {
     }
@@ -33,9 +42,20 @@ final class ApiExceptionSubscriber implements EventSubscriberInterface
         }
 
         $exception = $event->getThrowable();
-        $statusCode = $exception instanceof HttpExceptionInterface ? $exception->getStatusCode() : 500;
 
-        $publicMessage = $statusCode >= 500 ? 'Internal server error.' : $exception->getMessage();
+        if ($exception instanceof HttpExceptionInterface) {
+            $statusCode = $exception->getStatusCode();
+            $publicMessage = $statusCode >= 500 ? 'Internal server error.' : $exception->getMessage();
+        } elseif ($exception instanceof \InvalidArgumentException) {
+            $statusCode = 400;
+            $message = $exception->getMessage();
+            $publicMessage = in_array($message, self::PUBLIC_INVALID_ARGUMENT_MESSAGES, true)
+                ? $message
+                : 'Invalid request.';
+        } else {
+            $statusCode = 500;
+            $publicMessage = 'Internal server error.';
+        }
 
         $this->logger->error('API request failed.', [
             'statusCode' => $statusCode,
