@@ -45,10 +45,10 @@ final class ChatRateLimiter
         );
     }
 
-    public function enforceIpLimit(string $token, Request $request): ?JsonResponse
+    public function enforceIpLimit(string $authScope, Request $request): ?JsonResponse
     {
         $ip = $request->getClientIp() ?? 'unknown';
-        $key = hash('sha256', $token . '|' . $ip);
+        $key = hash('sha256', $authScope . '|' . $ip);
         $rateLimit = $this->ipRateLimiterFactory->create($key)->consume(1);
 
         if ($rateLimit->isAccepted()) {
@@ -63,10 +63,10 @@ final class ChatRateLimiter
         );
     }
 
-    public function enforceIpDailyQuota(string $token, Request $request): ?JsonResponse
+    public function enforceIpDailyQuota(string $authScope, Request $request): ?JsonResponse
     {
         $ip = $request->getClientIp() ?? 'unknown';
-        $key = hash('sha256', 'ip-daily|' . $token . '|' . $ip);
+        $key = hash('sha256', 'ip-daily|' . $authScope . '|' . $ip);
         $rateLimit = $this->ipDailyQuotaLimiterFactory->create($key)->consume(1);
 
         if ($rateLimit->isAccepted()) {
