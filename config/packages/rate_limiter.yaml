@@ -37,6 +37,13 @@ framework:
             interval: '1 minute'
             cache_pool: rate_limiter.storage
 
+        # Run telemetry pings per IP (one legit run lasts ~1h, so this is generous)
+        telemetry_ip:
+            policy: fixed_window
+            limit: 30
+            interval: '1 hour'
+            cache_pool: rate_limiter.storage
+
         # Kill-switch: total requests across ALL players per day.
         # Caps worst-case AI spend even if the game token leaks.
         game_global_daily:

@@ -84,6 +84,19 @@ Primer odgovora:
 }
 ```
 
+### POST /api/telemetry/run
+
+Anonimna telemetrija na kraju runa (za balansiranje). Autentifikacija ista kao za
+`/api/chat` (session token ili game token). Rate limit: 30/h po IP-u. Bez baze —
+zapis ide u strukturirani log (`Run telemetry.`), agregira se iz Render log streama.
+
+```json
+{ "ending": "paranoid_survivor", "resets": 4, "ai_messages": 12, "build": "1.0.0" }
+```
+
+`ending` ∈ `escape_together | obedient_fool | cold_betrayal | merged_memory |
+the_replacement | paranoid_survivor`. Odgovor: `204 No Content`.
+
 ## Lokalno pokretanje (bez Dockera)
 
 1. Instaliraj zavisnosti:
