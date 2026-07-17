@@ -30,29 +30,34 @@ final class ChatController
 
         $auth = $this->tokenAuthenticator->authenticate($request);
 
-        if ($denied = $this->rateLimiter->enforceGlobalDailyQuota()) {
-            return $denied;
-        }
-
+        // Cheap burst protection first — does not consume fair-use / cost quotas.
         if ($denied = $this->rateLimiter->enforceIpLimit($auth->scope, $request)) {
             return $denied;
         }
 
-        if ($denied = $this->rateLimiter->enforceIpDailyQuota($auth->scope, $request)) {
-            return $denied;
-        }
-
+        // Validate the body before spending daily/global/player quotas so
+        // malformed requests cannot burn the AI spend kill-switch.
         $mapped = $this->requestMapper->map($request);
 
         // Session-token auth carries a verified identity; never trust the
         // client-supplied player_id in that case.
         $playerId = $auth->playerId ?? $this->rateLimiter->resolvePlayerId($mapped['payload'], $request);
 
+        if ($denied = $this->rateLimiter->enforceIpDailyQuota($auth->scope, $request)) {
+            return $denied;
+        }
+
         if ($denied = $this->rateLimiter->enforcePlayerDailyQuota($playerId)) {
             return $denied;
         }
 
         if ($denied = $this->rateLimiter->enforcePlayerMonthlyQuota($playerId)) {
+            return $denied;
+        }
+
+        // Consume the shared cost kill-switch last so callers already denied
+        // by a narrower quota cannot drain allowance for every player.
+        if ($denied = $this->rateLimiter->enforceGlobalDailyQuota()) {
             return $denied;
         }
 

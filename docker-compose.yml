@@ -7,20 +7,24 @@ services:
     ports:
       - "8080:80"
     environment:
-      APP_ENV: ${APP_ENV:-prod}
-      APP_DEBUG: ${APP_DEBUG:-0}
-      GAME_API_TOKEN: ${GAME_API_TOKEN:-change-this-token}
+      # Compose-specific names prevent Symfony's checked-in .env defaults
+      # (APP_ENV=dev, localhost Redis) from overriding container-safe values.
+      APP_ENV: ${DOCKER_APP_ENV:-prod}
+      APP_DEBUG: ${DOCKER_APP_DEBUG:-0}
+      GAME_API_TOKEN: ${GAME_API_TOKEN:-}
       GAME_DAILY_PLAYER_QUOTA: ${GAME_DAILY_PLAYER_QUOTA:-120}
       GAME_MONTHLY_PLAYER_QUOTA: ${GAME_MONTHLY_PLAYER_QUOTA:-2000}
       GAME_DAILY_IP_QUOTA: ${GAME_DAILY_IP_QUOTA:-300}
       GAME_GLOBAL_DAILY_QUOTA: ${GAME_GLOBAL_DAILY_QUOTA:-5000}
-      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      # Direct Compose traffic must not trust client-supplied X-Forwarded-For.
+      TRUSTED_PROXIES: ${DOCKER_TRUSTED_PROXIES:-127.0.0.1}
+      REDIS_URL: ${DOCKER_REDIS_URL:-redis://redis:6379}
       STEAM_WEB_API_KEY: ${STEAM_WEB_API_KEY:-}
       STEAM_APP_ID: ${STEAM_APP_ID:-}
       SESSION_TOKEN_SECRET: ${SESSION_TOKEN_SECRET:-}
       SESSION_TOKEN_TTL: ${SESSION_TOKEN_TTL:-43200}
-      AUTH_ALLOW_GAME_TOKEN: ${AUTH_ALLOW_GAME_TOKEN:-true}
+      # Production-like compose defaults to Steam-only auth.
+      AUTH_ALLOW_GAME_TOKEN: ${AUTH_ALLOW_GAME_TOKEN:-false}
       AI_CHAT_COMPLETIONS_URL: ${AI_CHAT_COMPLETIONS_URL:-https://api.openai.com/v1/chat/completions}
       AI_API_KEY: ${AI_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-gpt-5.4-mini}
@@ -43,7 +47,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: loop9-redis
-    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    # noeviction: rate-limit keys must not be silently dropped under memory pressure.
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction"]
     volumes:
       - redis-data:/data
     restart: unless-stopped

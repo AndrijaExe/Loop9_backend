@@ -15,11 +15,14 @@ use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 #[AsAlias(AiChatGatewayInterface::class)]
 final class AiChatGateway implements AiChatGatewayInterface
 {
+    /** Hard ceiling across all sequential provider attempts (seconds). */
+    public const TOTAL_DEADLINE_SECONDS = 45.0;
+
     public function __construct(
         private readonly AiProviderCatalog $providerCatalog,
         private readonly ProviderRoutingPolicy $routingPolicy,
         private readonly PromptFactory $promptFactory,
-        private readonly OpenAiCompatibleHttpClient $httpClient,
+        private readonly OpenAiCompatibleHttpClientInterface $httpClient,
         private readonly AssistantReplyFormatValidator $replyFormatValidator,
         private readonly CostEstimator $costEstimator,
         private readonly LoggerInterface $logger,
@@ -35,18 +38,43 @@ final class AiChatGateway implements AiChatGatewayInterface
         );
         $maxTokens = $this->routingPolicy->maxTokensForLoop($context->loopIndex());
 
+        $deadlineAt = microtime(true) + self::TOTAL_DEADLINE_SECONDS;
         $lastException = null;
 
         foreach ($providers as $provider) {
-            try {
-                $response = $this->httpClient->chatCompletion($provider, $messages, $maxTokens);
+            $remaining = $deadlineAt - microtime(true);
+            if ($remaining <= 0.5) {
+                break;
+            }
 
-                if ($response['statusCode'] >= 400) {
+            try {
+                $response = $this->httpClient->chatCompletion(
+                    $provider,
+                    $messages,
+                    $maxTokens,
+                    min(OpenAiCompatibleHttpClient::DEFAULT_TIMEOUT_SECONDS, $remaining),
+                );
+
+                if ($response['statusCode'] !== 200) {
                     $this->logger->warning('AI provider returned error status.', [
                         'provider' => $provider['label'],
+                        'model' => $provider['model'],
                         'statusCode' => $response['statusCode'],
-                        'response' => $response['data'],
+                        'error' => $this->httpClient->summarizeErrorPayload($response['data']),
+                        'latencyMs' => $response['latencyMs'],
                     ]);
+
+                    // Request-global 4xx errors should not burn another paid
+                    // attempt. Provider-local auth/model/endpoint failures may
+                    // still fall through to independently configured providers.
+                    if ($this->isRequestGlobalFailure($response['statusCode'])) {
+                        throw new \RuntimeException(sprintf(
+                            'AI provider "%s" rejected the request (HTTP %d).',
+                            $provider['label'],
+                            $response['statusCode']
+                        ));
+                    }
+
                     continue;
                 }
 
@@ -54,12 +82,18 @@ final class AiChatGateway implements AiChatGatewayInterface
                 $validatedContent = $this->replyFormatValidator->normalizeAndValidate($rawContent);
 
                 if ($validatedContent === null) {
-                    $this->logger->warning('AI response format invalid; trying next provider.', [
+                    // Format failure is a prompt/model issue — do not multiply spend
+                    // by silently cascading to every configured fallback.
+                    $this->logger->warning('AI response format invalid; not cascading to fallbacks.', [
                         'provider' => $provider['label'],
                         'model' => $provider['model'],
-                        'contentPreview' => mb_substr($rawContent, 0, 180),
+                        'contentLength' => mb_strlen($rawContent),
                     ]);
-                    continue;
+
+                    throw new \RuntimeException(sprintf(
+                        'AI provider "%s" returned an invalid reply format.',
+                        $provider['label']
+                    ));
                 }
 
                 $this->logger->info('AI provider selected for response.', [
@@ -83,8 +117,15 @@ final class AiChatGateway implements AiChatGatewayInterface
 
                 $this->logger->error('AI provider request failed.', [
                     'provider' => $provider['label'],
-                    'exception' => $exception,
+                    'model' => $provider['model'],
+                    'exceptionClass' => $exception::class,
                 ]);
+
+                if ($this->shouldStopCascading($exception)) {
+                    throw $exception instanceof \RuntimeException
+                        ? $exception
+                        : new \RuntimeException('Unable to reach AI provider.', previous: $exception);
+                }
             }
         }
 
@@ -93,5 +134,19 @@ final class AiChatGateway implements AiChatGatewayInterface
         }
 
         throw new \RuntimeException('AI provider returned an error.');
+    }
+
+    private function isRequestGlobalFailure(int $statusCode): bool
+    {
+        return in_array($statusCode, [400, 405, 413, 415, 422], true);
+    }
+
+    private function shouldStopCascading(\Throwable $exception): bool
+    {
+        $message = $exception->getMessage();
+
+        return str_contains($message, 'invalid reply format')
+            || str_contains($message, 'invalid response')
+            || str_contains($message, 'rejected the request');
     }
 }

@@ -131,6 +131,36 @@ final class ChatEndpointTest extends WebTestCase
         self::assertResponseStatusCodeSame(204);
     }
 
+    public function testRejectsOversizedBody(): void
+    {
+        $client = static::createClient();
+
+        $client->request(
+            'POST',
+            '/api/chat',
+            server: [
+                'CONTENT_TYPE' => 'application/json',
+                'HTTP_X_GAME_TOKEN' => $this->gameToken(),
+                'CONTENT_LENGTH' => (string) (\App\Infrastructure\Http\RequestBodyLimitSubscriber::MAX_BODY_BYTES + 1),
+            ],
+            content: str_repeat('a', \App\Infrastructure\Http\RequestBodyLimitSubscriber::MAX_BODY_BYTES + 1),
+        );
+
+        self::assertResponseStatusCodeSame(413);
+    }
+
+    public function testReadyzIsReadyInTestEnvironment(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/readyz');
+
+        self::assertResponseIsSuccessful();
+        $payload = json_decode($client->getResponse()->getContent() ?: '', true);
+        self::assertIsArray($payload);
+        self::assertSame('ready', $payload['status'] ?? null);
+    }
+
     private function gameToken(): string
     {
         $token = $_ENV['GAME_API_TOKEN'] ?? $_SERVER['GAME_API_TOKEN'] ?? getenv('GAME_API_TOKEN');

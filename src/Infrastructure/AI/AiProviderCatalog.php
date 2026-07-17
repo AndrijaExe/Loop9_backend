@@ -20,6 +20,8 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 final class AiProviderCatalog
 {
     public function __construct(
+        #[Autowire(env: 'APP_ENV')]
+        private readonly string $appEnv,
         #[Autowire(env: 'AI_CHAT_COMPLETIONS_URL')]
         private readonly string $primaryUrl,
         #[Autowire(env: 'AI_API_KEY')]
@@ -67,7 +69,7 @@ final class AiProviderCatalog
                 'url' => $this->primaryUrl,
                 'apiKey' => $this->primaryApiKey,
                 'model' => $this->primaryModel,
-                'verifyTls' => $this->isEnabled($this->primaryTlsVerify),
+                'verifyTls' => $this->resolveTlsVerify($this->primaryTlsVerify),
             ],
         ];
 
@@ -78,7 +80,7 @@ final class AiProviderCatalog
                 'url' => $this->fallbackUrl,
                 'apiKey' => $this->fallbackApiKey,
                 'model' => $this->fallbackModel,
-                'verifyTls' => $this->isEnabled($this->fallbackTlsVerify),
+                'verifyTls' => $this->resolveTlsVerify($this->fallbackTlsVerify),
             ];
         }
 
@@ -89,7 +91,7 @@ final class AiProviderCatalog
                 'url' => $this->fallback2Url,
                 'apiKey' => $this->fallback2ApiKey,
                 'model' => $this->fallback2Model,
-                'verifyTls' => $this->isEnabled($this->fallback2TlsVerify),
+                'verifyTls' => $this->resolveTlsVerify($this->fallback2TlsVerify),
             ];
         }
 
@@ -110,6 +112,16 @@ final class AiProviderCatalog
             && trim($this->fallback2Url) !== ''
             && trim($this->fallback2ApiKey) !== ''
             && trim($this->fallback2Model) !== '';
+    }
+
+    private function resolveTlsVerify(string $value): bool
+    {
+        // Never allow disabling TLS verification in production.
+        if ($this->appEnv === 'prod') {
+            return true;
+        }
+
+        return $this->isEnabled($value);
     }
 
     private function isEnabled(string $value): bool

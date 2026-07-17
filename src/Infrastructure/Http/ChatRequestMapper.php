@@ -13,13 +13,18 @@ final class ChatRequestMapper
     public const MAX_MESSAGE_LENGTH = 4000;
     public const MAX_LANGUAGE_LENGTH = 32;
     public const MAX_ANOMALY_CONTEXT_LENGTH = 1000;
+    public const MAX_JSON_DEPTH = 8;
 
     /**
      * @return array{message: string, context: RuntimeContext, payload: array<string, mixed>}
      */
     public function map(Request $request): array
     {
-        $payload = json_decode($request->getContent(), true);
+        try {
+            $payload = json_decode($request->getContent(), true, self::MAX_JSON_DEPTH, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            throw new BadRequestHttpException('Invalid JSON body.');
+        }
 
         if (!is_array($payload)) {
             throw new BadRequestHttpException('Invalid JSON body.');
@@ -29,6 +34,10 @@ final class ChatRequestMapper
 
         if (!is_string($playerMessage)) {
             throw new BadRequestHttpException('Field "message" must be a string.');
+        }
+
+        if (trim($playerMessage) === '') {
+            throw new BadRequestHttpException('Message cannot be empty.');
         }
 
         if (mb_strlen($playerMessage) > self::MAX_MESSAGE_LENGTH) {

@@ -10,8 +10,11 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 /**
  * OpenAI-compatible chat completions HTTP transport.
  */
-final class OpenAiCompatibleHttpClient
+final class OpenAiCompatibleHttpClient implements OpenAiCompatibleHttpClientInterface
 {
+    public const DEFAULT_TIMEOUT_SECONDS = 30.0;
+    public const MAX_RESPONSE_BYTES = 262_144;
+
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly LoggerInterface $logger,
@@ -23,8 +26,12 @@ final class OpenAiCompatibleHttpClient
      * @param array{label: string, url: string, apiKey: string, model: string, verifyTls: bool, tier?: string} $provider
      * @return array{statusCode: int, data: array<string, mixed>, latencyMs: float, promptTokens: ?int, completionTokens: ?int}
      */
-    public function chatCompletion(array $provider, array $messages, int $maxTokens): array
+    public function chatCompletion(array $provider, array $messages, int $maxTokens, float $timeoutSeconds = self::DEFAULT_TIMEOUT_SECONDS): array
     {
+        if ($timeoutSeconds <= 0.5) {
+            throw new \RuntimeException('AI request budget exhausted.');
+        }
+
         $payload = [
             'model' => $provider['model'],
             'messages' => $messages,
@@ -45,14 +52,49 @@ final class OpenAiCompatibleHttpClient
                 'Content-Type' => 'application/json',
             ],
             'json' => $payload,
-            'timeout' => 30,
+            'timeout' => $timeoutSeconds,
+            'max_duration' => $timeoutSeconds,
+            'max_redirects' => 0,
+            'buffer' => false,
             'verify_peer' => $provider['verifyTls'],
             'verify_host' => $provider['verifyTls'],
         ]);
 
         $statusCode = $response->getStatusCode();
+        $body = '';
+        foreach ($this->httpClient->stream($response) as $chunk) {
+            $content = $chunk->getContent();
+            if (strlen($body) + strlen($content) > self::MAX_RESPONSE_BYTES) {
+                $response->cancel();
+                throw new \RuntimeException(sprintf(
+                    'AI provider returned invalid response: body exceeds %d bytes.',
+                    self::MAX_RESPONSE_BYTES,
+                ));
+            }
+
+            $body .= $content;
+        }
+
+        try {
+            $decoded = json_decode($body, true, 64, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            if ($statusCode === 200) {
+                throw new \RuntimeException('AI provider returned invalid response.', previous: $exception);
+            }
+
+            $decoded = [];
+        }
+
+        if (!is_array($decoded)) {
+            if ($statusCode === 200) {
+                throw new \RuntimeException('AI provider returned invalid response.');
+            }
+
+            $decoded = [];
+        }
+
         /** @var array<string, mixed> $data */
-        $data = $response->toArray(false);
+        $data = $decoded;
         $latencyMs = (microtime(true) - $startedAt) * 1000;
 
         return [
@@ -73,13 +115,40 @@ final class OpenAiCompatibleHttpClient
 
         if (!is_string($content) || trim($content) === '') {
             $this->logger->warning('AI provider returned invalid payload.', [
-                'response' => $data,
+                'keys' => array_keys($data),
+                'hasChoices' => isset($data['choices']),
             ]);
 
             throw new \RuntimeException('AI provider returned invalid response.');
         }
 
         return $content;
+    }
+
+    /**
+     * Safe summary of provider error payloads for logs (no prompt/content echo).
+     *
+     * @param array<string, mixed> $data
+     * @return array{type?: string, code?: string}
+     */
+    public function summarizeErrorPayload(array $data): array
+    {
+        $error = $data['error'] ?? null;
+        if (!is_array($error)) {
+            return [];
+        }
+
+        $summary = [];
+        foreach (['type', 'code'] as $field) {
+            if (isset($error[$field]) && is_scalar($error[$field])) {
+                $value = (string) $error[$field];
+                if (preg_match('/\A[A-Za-z0-9_.:-]{1,64}\z/', $value) === 1) {
+                    $summary[$field] = $value;
+                }
+            }
+        }
+
+        return $summary;
     }
 
     /**

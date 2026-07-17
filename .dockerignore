@@ -4,8 +4,10 @@ var/cache
 var/log
 vendor
 node_modules
-.env.local
-.env.*.local
+.env.*
 Dockerfile*
 docker-compose*.yml
 README.md
+tests
+phpunit.dist.xml
+bin/phpunit

@@ -8,3 +8,7 @@ services:
 
     App\:
         resource: '../src/'
+
+    App\Infrastructure\AI\OpenAiCompatibleHttpClientInterface:
+        alias: App\Infrastructure\AI\OpenAiCompatibleHttpClient
+        public: false

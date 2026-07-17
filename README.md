@@ -191,7 +191,14 @@ GitHub Pages ostaje za dokumentaciju (`docs/`), dok backend ide na Render.
    - `REDIS_URL` = internal Redis URL sa Render-a
    - `TRUSTED_PROXIES` = `127.0.0.1,REMOTE_ADDR` (Render proxy prosleđuje pravi IP kroz `X-Forwarded-For`)
    - `APP_ENV` = `prod`
-7. U Render service settings postavi **Health Check Path** na `/healthz`.
+7. U Render service settings postavi **Health Check Path** na `/readyz`.
+   `/readyz` proverava production konfiguraciju i Redis; `/healthz` ostaje
+   lagani liveness endpoint za ručnu dijagnostiku.
+
+Za lokalni production-like Compose koristi `DOCKER_APP_ENV`,
+`DOCKER_REDIS_URL` i `DOCKER_TRUSTED_PROXIES`. Podrazumevani Compose proxy je
+samo `127.0.0.1`; nikad ne dodavati `REMOTE_ADDR` kada je servis direktno
+izložen bez pouzdanog reverse proxy-ja.
 
 U `prod` okruženju rate limiter brojači žive u Redis-u, pa kvote prežive restart/deploy
 i rade ispravno i sa više instanci. U `dev`/`test` Redis nije potreban (filesystem/in-memory).
@@ -226,7 +233,7 @@ Najvaznije:
 - `STEAM_APP_ID` — App ID igre (za testiranje pre kupovine App ID-a može `480` / Spacewar)
 - `SESSION_TOKEN_SECRET` — tajna za potpisivanje session tokena (`openssl rand -hex 32`)
 - `SESSION_TOKEN_TTL` (default 43200) — trajanje session tokena u sekundama
-- `AUTH_ALLOW_GAME_TOKEN` (default true) — dozvoli legacy `X-Game-Token`; postavi na `false` kad Steam build bude live
+- `AUTH_ALLOW_GAME_TOKEN` (default false) — legacy `X-Game-Token` uključiti samo eksplicitno u non-prod okruženju
 - `AI_CHAT_COMPLETIONS_URL`
 - `AI_API_KEY`
 - `AI_MODEL`

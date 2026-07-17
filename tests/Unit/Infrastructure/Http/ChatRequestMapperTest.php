@@ -35,6 +35,18 @@ final class ChatRequestMapperTest extends TestCase
         ));
     }
 
+    public function testRejectsWhitespaceOnlyMessageBeforeQuotaConsumption(): void
+    {
+        $this->expectException(BadRequestHttpException::class);
+        $this->expectExceptionMessage('Message cannot be empty.');
+
+        (new ChatRequestMapper())->map(Request::create(
+            '/api/chat',
+            'POST',
+            content: '{"message":"   "}',
+        ));
+    }
+
     public function testMapsValidPayload(): void
     {
         $mapped = (new ChatRequestMapper())->map(Request::create(
@@ -51,5 +63,36 @@ final class ChatRequestMapperTest extends TestCase
         self::assertSame('hello', $mapped['message']);
         self::assertSame(3, $mapped['context']->loopIndex());
         self::assertSame('sr', $mapped['context']->language());
+    }
+
+    public function testRejectsDeeplyNestedJson(): void
+    {
+        $this->expectException(BadRequestHttpException::class);
+        $this->expectExceptionMessage('Invalid JSON body.');
+
+        $nested = ['message' => 'hi'];
+        $cursor = &$nested;
+        for ($i = 0; $i < ChatRequestMapper::MAX_JSON_DEPTH + 2; ++$i) {
+            $cursor['child'] = [];
+            $cursor = &$cursor['child'];
+        }
+
+        (new ChatRequestMapper())->map(Request::create(
+            '/api/chat',
+            'POST',
+            content: json_encode($nested, JSON_THROW_ON_ERROR),
+        ));
+    }
+
+    public function testRejectsMalformedJson(): void
+    {
+        $this->expectException(BadRequestHttpException::class);
+        $this->expectExceptionMessage('Invalid JSON body.');
+
+        (new ChatRequestMapper())->map(Request::create(
+            '/api/chat',
+            'POST',
+            content: '{not-json',
+        ));
     }
 }

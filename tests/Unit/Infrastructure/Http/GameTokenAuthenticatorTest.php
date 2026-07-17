@@ -21,7 +21,7 @@ final class GameTokenAuthenticatorTest extends TestCase
 
     public function testValidSessionTokenYieldsVerifiedPlayerId(): void
     {
-        $authenticator = new GameTokenAuthenticator('shared-token', true, $this->issuer);
+        $authenticator = new GameTokenAuthenticator('shared-token', true, 'test', $this->issuer);
         $issued = $this->issuer->issue('steam-76561198000000001');
 
         $request = Request::create('/api/chat', 'POST', server: [
@@ -36,7 +36,7 @@ final class GameTokenAuthenticatorTest extends TestCase
 
     public function testInvalidSessionTokenIsRejectedEvenIfGameTokenAllowed(): void
     {
-        $authenticator = new GameTokenAuthenticator('shared-token', true, $this->issuer);
+        $authenticator = new GameTokenAuthenticator('shared-token', true, 'test', $this->issuer);
 
         $request = Request::create('/api/chat', 'POST', server: [
             'HTTP_X_SESSION_TOKEN' => 'v1.bogus.bogus',
@@ -49,7 +49,7 @@ final class GameTokenAuthenticatorTest extends TestCase
 
     public function testGameTokenStillWorksWhenAllowed(): void
     {
-        $authenticator = new GameTokenAuthenticator('shared-token', true, $this->issuer);
+        $authenticator = new GameTokenAuthenticator('shared-token', true, 'test', $this->issuer);
 
         $request = Request::create('/api/chat', 'POST', server: [
             'HTTP_X_GAME_TOKEN' => 'shared-token',
@@ -63,7 +63,7 @@ final class GameTokenAuthenticatorTest extends TestCase
 
     public function testGameTokenRejectedWhenDisabled(): void
     {
-        $authenticator = new GameTokenAuthenticator('shared-token', false, $this->issuer);
+        $authenticator = new GameTokenAuthenticator('shared-token', false, 'test', $this->issuer);
 
         $request = Request::create('/api/chat', 'POST', server: [
             'HTTP_X_GAME_TOKEN' => 'shared-token',
@@ -75,10 +75,22 @@ final class GameTokenAuthenticatorTest extends TestCase
 
     public function testWrongGameTokenRejected(): void
     {
-        $authenticator = new GameTokenAuthenticator('shared-token', true, $this->issuer);
+        $authenticator = new GameTokenAuthenticator('shared-token', true, 'test', $this->issuer);
 
         $request = Request::create('/api/chat', 'POST', server: [
             'HTTP_X_GAME_TOKEN' => 'wrong',
+        ]);
+
+        $this->expectException(AccessDeniedHttpException::class);
+        $authenticator->authenticate($request);
+    }
+
+    public function testGameTokenIsAlwaysRejectedInProduction(): void
+    {
+        $authenticator = new GameTokenAuthenticator('shared-token', true, 'prod', $this->issuer);
+
+        $request = Request::create('/api/chat', 'POST', server: [
+            'HTTP_X_GAME_TOKEN' => 'shared-token',
         ]);
 
         $this->expectException(AccessDeniedHttpException::class);

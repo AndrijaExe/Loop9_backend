@@ -21,6 +21,8 @@ final class GameTokenAuthenticator
         private readonly string $gameApiToken,
         #[Autowire(env: 'bool:AUTH_ALLOW_GAME_TOKEN')]
         private readonly bool $allowGameToken,
+        #[Autowire(env: 'APP_ENV')]
+        private readonly string $appEnv,
         private readonly SessionTokenIssuer $sessionTokens,
     ) {
     }
@@ -39,7 +41,7 @@ final class GameTokenAuthenticator
             return new AuthResult(scope: 'session', playerId: $playerId);
         }
 
-        if (!$this->allowGameToken) {
+        if (!$this->allowGameToken || $this->appEnv === 'prod') {
             throw new AccessDeniedHttpException('Session token required.');
         }
 

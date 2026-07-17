@@ -4,6 +4,8 @@ WORKDIR /app
 
 COPY . .
 
+# The committed .env contains fail-closed, non-secret defaults. Runtime secrets
+# still come from the host/orchestrator environment and override these values.
 RUN composer install \
     --no-dev \
     --prefer-dist \
@@ -27,8 +29,25 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
     && sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
 # Enable Symfony front-controller rewrites from public/.htaccess.
-RUN printf '<Directory /var/www/html/public>\n    AllowOverride All\n    Require all granted\n</Directory>\n' > /etc/apache2/conf-available/symfony.conf \
+# Cap JSON API bodies at 64 KiB to bound memory before PHP parses the payload.
+RUN printf '%s\n' \
+    '<Directory /var/www/html/public>' \
+    '    AllowOverride All' \
+    '    Require all granted' \
+    '    LimitRequestBody 65536' \
+    '</Directory>' \
+    > /etc/apache2/conf-available/symfony.conf \
     && a2enconf symfony
+
+# Production OPcache: compile once, do not revalidate timestamps in the image.
+RUN printf '%s\n' \
+    'opcache.enable=1' \
+    'opcache.memory_consumption=128' \
+    'opcache.interned_strings_buffer=16' \
+    'opcache.max_accelerated_files=10000' \
+    'opcache.validate_timestamps=0' \
+    'opcache.revalidate_freq=0' \
+    > /usr/local/etc/php/conf.d/opcache-prod.ini
 
 WORKDIR /var/www/html
 
