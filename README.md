@@ -167,6 +167,7 @@ docker compose up --build -d
 API ce biti dostupan na:
 
 - `http://localhost:8080/api/chat`
+- `http://localhost:8080/privacy` — javna Loop 9 Privacy Policy stranica za Steam
 
 ### Stop
 

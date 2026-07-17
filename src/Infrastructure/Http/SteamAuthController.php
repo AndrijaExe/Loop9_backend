@@ -69,7 +69,7 @@ final class SteamAuthController
         if ($steamId === null) {
             $this->logger->warning('Steam ticket rejected.', [
                 'requestId' => $requestId,
-                'ip' => $ip,
+                'ipHash' => hash('sha256', $ip),
                 'timingMs' => [
                     'rateLimit' => $rateLimitMs,
                     'ticketValidation' => $ticketValidationMs,
@@ -93,7 +93,7 @@ final class SteamAuthController
         $this->logger->info('Steam session token issued.', [
             'requestId' => $requestId,
             'playerIdHash' => hash('sha256', $playerId),
-            'ip' => $ip,
+            'ipHash' => hash('sha256', $ip),
             'timingMs' => [
                 'rateLimit' => $rateLimitMs,
                 'ticketValidation' => $ticketValidationMs,

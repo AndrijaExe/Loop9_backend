@@ -79,7 +79,7 @@ final class ChatController
 
         $this->logger->info('Game chat message processed.', [
             'requestId' => $requestId,
-            'ip' => $request->getClientIp() ?? 'unknown',
+            'ipHash' => hash('sha256', $request->getClientIp() ?? 'unknown'),
             'playerIdHash' => hash('sha256', $playerId),
             'loopIndex' => $mapped['context']->loopIndex(),
             'timingMs' => [
