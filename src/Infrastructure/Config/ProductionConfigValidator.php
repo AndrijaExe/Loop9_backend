@@ -56,6 +56,14 @@ final class ProductionConfigValidator
         private readonly string $fallback2ApiKey,
         #[Autowire(env: 'AI_FALLBACK2_MODEL')]
         private readonly string $fallback2Model,
+        #[Autowire(env: 'AI_MODERATION_URL')]
+        private readonly string $moderationUrl,
+        #[Autowire(env: 'AI_MODERATION_API_KEY')]
+        private readonly string $moderationApiKey,
+        #[Autowire(env: 'AI_MODERATION_MODEL')]
+        private readonly string $moderationModel,
+        #[Autowire(env: 'int:AI_MODERATION_TIMEOUT_SECONDS')]
+        private readonly int $moderationTimeoutSeconds,
     ) {
     }
 
@@ -129,6 +137,20 @@ final class ProductionConfigValidator
             $this->fallback2Model,
         )) {
             $issues[] = 'Enabled AI fallback 2 requires HTTPS URL, API key, and model.';
+        }
+
+        $effectiveModerationKey = trim($this->moderationApiKey) !== ''
+            ? $this->moderationApiKey
+            : $this->fallbackApiKey;
+        if (!$this->isHttpsUrl($this->moderationUrl)
+            || trim($effectiveModerationKey) === ''
+            || trim($this->moderationModel) === ''
+        ) {
+            $issues[] = 'AI moderation requires an HTTPS URL, model, and dedicated or OpenAI fallback API key.';
+        }
+
+        if ($this->moderationTimeoutSeconds < 1 || $this->moderationTimeoutSeconds > 10) {
+            $issues[] = 'AI_MODERATION_TIMEOUT_SECONDS must be between 1 and 10.';
         }
 
         return $issues;

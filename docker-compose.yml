@@ -40,6 +40,10 @@ services:
       AI_FALLBACK2_API_KEY: ${AI_FALLBACK2_API_KEY:-}
       AI_FALLBACK2_MODEL: ${AI_FALLBACK2_MODEL:-}
       AI_FALLBACK2_TLS_VERIFY: ${AI_FALLBACK2_TLS_VERIFY:-true}
+      AI_MODERATION_URL: ${AI_MODERATION_URL:-https://api.openai.com/v1/moderations}
+      AI_MODERATION_API_KEY: ${AI_MODERATION_API_KEY:-}
+      AI_MODERATION_MODEL: ${AI_MODERATION_MODEL:-omni-moderation-latest}
+      AI_MODERATION_TIMEOUT_SECONDS: ${AI_MODERATION_TIMEOUT_SECONDS:-3}
     depends_on:
       - redis
     restart: unless-stopped

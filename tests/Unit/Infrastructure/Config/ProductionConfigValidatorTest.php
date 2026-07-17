@@ -36,6 +36,10 @@ final class ProductionConfigValidatorTest extends TestCase
             fallbackUrl: '',
             fallbackApiKey: '',
             fallbackModel: '',
+            moderationUrl: '',
+            moderationApiKey: '',
+            moderationModel: '',
+            moderationTimeoutSeconds: 0,
         );
 
         $issues = $validator->issues();
@@ -51,6 +55,8 @@ final class ProductionConfigValidatorTest extends TestCase
         self::assertStringContainsString('AI_API_KEY', implode(' ', $issues));
         self::assertStringContainsString('AI_CHAT_COMPLETIONS_URL', implode(' ', $issues));
         self::assertStringContainsString('fallback', implode(' ', $issues));
+        self::assertStringContainsString('moderation', implode(' ', $issues));
+        self::assertStringContainsString('AI_MODERATION_TIMEOUT_SECONDS', implode(' ', $issues));
     }
 
     public function testAcceptsHardenedProductionConfig(): void
@@ -94,6 +100,10 @@ final class ProductionConfigValidatorTest extends TestCase
         string $fallback2Url = '',
         string $fallback2ApiKey = '',
         string $fallback2Model = '',
+        string $moderationUrl = 'https://api.openai.com/v1/moderations',
+        string $moderationApiKey = 'moderation-key',
+        string $moderationModel = 'omni-moderation-latest',
+        int $moderationTimeoutSeconds = 3,
     ): ProductionConfigValidator {
         return new ProductionConfigValidator(
             appEnv: $appEnv,
@@ -117,6 +127,10 @@ final class ProductionConfigValidatorTest extends TestCase
             fallback2Url: $fallback2Url,
             fallback2ApiKey: $fallback2ApiKey,
             fallback2Model: $fallback2Model,
+            moderationUrl: $moderationUrl,
+            moderationApiKey: $moderationApiKey,
+            moderationModel: $moderationModel,
+            moderationTimeoutSeconds: $moderationTimeoutSeconds,
         );
     }
 }

@@ -110,6 +110,8 @@ Relevantni log događaji:
   `fallbackCount`, provider `latencyMs`, `totalAiMs`, tokeni i procenjeni trošak.
 - `AI provider returned error status.` / `AI provider request failed.` — isti
   `requestId` i broj pokušaja za dijagnostiku fallback-a.
+- `Content safety decision.` — `stage` (`input`/`output`), odluka, kategorije i
+  moderation `latencyMs`; sadržaj poruke se nikad ne loguje.
 - `Steam session token issued.` — `timingMs.rateLimit`, `ticketValidation`,
   `steamVerify`, `tokenIssue` i `total`.
 - Unreal `Chat request complete.` — client end-to-end `DurationMs`.
@@ -268,6 +270,10 @@ Najvaznije:
 - `AI_MODEL`
 - `AI_FALLBACK_ENABLED`
 - `AI_FALLBACK2_ENABLED`
+- `AI_MODERATION_URL` (default `https://api.openai.com/v1/moderations`)
+- `AI_MODERATION_API_KEY` — opcioni poseban OpenAI key; ako je prazan koristi se `AI_FALLBACK_API_KEY`
+- `AI_MODERATION_MODEL` (default `omni-moderation-latest`)
+- `AI_MODERATION_TIMEOUT_SECONDS` (default 3) — fail-closed; nedostupna moderacija vraća bezbednu in-fiction poruku
 
 Za Docker mozes koristiti `.env` ili shell environment pri pokretanju compose-a.
 `docker compose` sada podiže i lokalni `redis` servis (app default `REDIS_URL=redis://redis:6379`).

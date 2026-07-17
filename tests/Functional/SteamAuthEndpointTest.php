@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Tests\Functional;
 
 use App\Domain\Chat\Message;
+use App\Domain\Chat\ContentSafetyDecision;
 use App\Domain\Chat\Port\AiChatGatewayInterface;
+use App\Domain\Chat\Port\ContentSafetyGatewayInterface;
 use App\Domain\Chat\RuntimeContext;
 use App\Infrastructure\Auth\SessionTokenIssuer;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -46,6 +48,12 @@ final class SteamAuthEndpointTest extends WebTestCase
             public function ask(string $playerMessage, RuntimeContext $context): Message
             {
                 return new Message('assistant', 'Stub reply.');
+            }
+        });
+        static::getContainer()->set(ContentSafetyGatewayInterface::class, new class implements ContentSafetyGatewayInterface {
+            public function evaluate(string $text, string $stage): ContentSafetyDecision
+            {
+                return ContentSafetyDecision::safe();
             }
         });
 
