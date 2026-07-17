@@ -28,19 +28,29 @@ final class ChatController
             return new JsonResponse(null, 204);
         }
 
+        $startedAt = hrtime(true);
+        $requestId = RequestMonitor::requestId($request);
+
+        $authStartedAt = hrtime(true);
         $auth = $this->tokenAuthenticator->authenticate($request);
+        $authMs = RequestMonitor::elapsedMs($authStartedAt);
 
         // Cheap burst protection first — does not consume fair-use / cost quotas.
+        $burstLimitStartedAt = hrtime(true);
         if ($denied = $this->rateLimiter->enforceIpLimit($auth->scope, $request)) {
             return $denied;
         }
+        $burstLimitMs = RequestMonitor::elapsedMs($burstLimitStartedAt);
 
         // Validate the body before spending daily/global/player quotas so
         // malformed requests cannot burn the AI spend kill-switch.
+        $validationStartedAt = hrtime(true);
         $mapped = $this->requestMapper->map($request);
+        $validationMs = RequestMonitor::elapsedMs($validationStartedAt);
 
         // Session-token auth carries a verified identity; never trust the
         // client-supplied player_id in that case.
+        $quotaStartedAt = hrtime(true);
         $playerId = $auth->playerId ?? $this->rateLimiter->resolvePlayerId($mapped['payload'], $request);
 
         if ($denied = $this->rateLimiter->enforceIpDailyQuota($auth->scope, $request)) {
@@ -60,15 +70,31 @@ final class ChatController
         if ($denied = $this->rateLimiter->enforceGlobalDailyQuota()) {
             return $denied;
         }
+        $quotaMs = RequestMonitor::elapsedMs($quotaStartedAt);
 
+        $aiStartedAt = hrtime(true);
         $response = ($this->sendChatMessage)($mapped['message'], $mapped['context']);
+        $aiMs = RequestMonitor::elapsedMs($aiStartedAt);
+        $totalMs = RequestMonitor::elapsedMs($startedAt);
 
         $this->logger->info('Game chat message processed.', [
+            'requestId' => $requestId,
             'ip' => $request->getClientIp() ?? 'unknown',
             'playerIdHash' => hash('sha256', $playerId),
             'loopIndex' => $mapped['context']->loopIndex(),
+            'timingMs' => [
+                'auth' => $authMs,
+                'burstLimit' => $burstLimitMs,
+                'validation' => $validationMs,
+                'quotas' => $quotaMs,
+                'ai' => $aiMs,
+                'total' => $totalMs,
+            ],
         ]);
 
-        return new JsonResponse($response->toArray(), 200);
+        return new JsonResponse($response->toArray(), 200, [
+            'X-Request-Id' => $requestId,
+        ]);
     }
+
 }

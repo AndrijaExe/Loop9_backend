@@ -97,6 +97,35 @@ zapis ide u strukturirani log (`Run telemetry.`), agregira se iz Render log stre
 `ending` ∈ `escape_together | obedient_fool | cold_betrayal | merged_memory |
 the_replacement | paranoid_survivor`. Odgovor: `204 No Content`.
 
+## Monitoring latencije
+
+Game generiše `X-Request-Id` za svaki Steam auth i chat HTTP pokušaj. Backend validira
+taj ID, vraća ga u response headeru i dodaje ga u povezane strukturirane logove.
+
+Relevantni log događaji:
+
+- `Game chat message processed.` — `timingMs.auth`, `burstLimit`, `validation`,
+  `quotas`, `ai` i `total`.
+- `AI provider selected for response.` — provider/model, `attempt`,
+  `fallbackCount`, provider `latencyMs`, `totalAiMs`, tokeni i procenjeni trošak.
+- `AI provider returned error status.` / `AI provider request failed.` — isti
+  `requestId` i broj pokušaja za dijagnostiku fallback-a.
+- `Steam session token issued.` — `timingMs.rateLimit`, `ticketValidation`,
+  `steamVerify`, `tokenIssue` i `total`.
+- Unreal `Chat request complete.` — client end-to-end `DurationMs`.
+- Unreal `Loop9 auth: session token acquired.` — client auth `DurationMs`.
+
+Praktično tumačenje:
+
+- visok `timingMs.quotas` ukazuje na Redis/rate-limiter;
+- visok `timingMs.steamVerify` ukazuje na Steam Web API ili mrežu;
+- visok provider `latencyMs` ukazuje na AI inference/cold start;
+- `attempt > 1` ili `fallbackCount > 0` pokazuje cenu fallback-a;
+- velika razlika između Unreal `DurationMs` i backend `timingMs.total` ukazuje na
+  DNS/TLS, platform proxy/cold start ili mrežu između igrača i backenda.
+
+Ne loguju se Steam ticket, session token, API ključevi ni sadržaj razgovora.
+
 ## Lokalno pokretanje (bez Dockera)
 
 1. Instaliraj zavisnosti:

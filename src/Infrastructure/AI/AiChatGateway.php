@@ -11,6 +11,7 @@ use App\Domain\Chat\RuntimeContext;
 use App\Domain\Chat\Validation\AssistantReplyFormatValidator;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\AsAlias;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 #[AsAlias(AiChatGatewayInterface::class)]
 final class AiChatGateway implements AiChatGatewayInterface
@@ -26,6 +27,7 @@ final class AiChatGateway implements AiChatGatewayInterface
         private readonly AssistantReplyFormatValidator $replyFormatValidator,
         private readonly CostEstimator $costEstimator,
         private readonly LoggerInterface $logger,
+        private readonly RequestStack $requestStack,
     ) {
     }
 
@@ -39,9 +41,12 @@ final class AiChatGateway implements AiChatGatewayInterface
         $maxTokens = $this->routingPolicy->maxTokensForLoop($context->loopIndex());
 
         $deadlineAt = microtime(true) + self::TOTAL_DEADLINE_SECONDS;
+        $startedAt = hrtime(true);
         $lastException = null;
+        $attempt = 0;
 
         foreach ($providers as $provider) {
+            ++$attempt;
             $remaining = $deadlineAt - microtime(true);
             if ($remaining <= 0.5) {
                 break;
@@ -57,6 +62,8 @@ final class AiChatGateway implements AiChatGatewayInterface
 
                 if ($response['statusCode'] !== 200) {
                     $this->logger->warning('AI provider returned error status.', [
+                        'requestId' => $this->requestId(),
+                        'attempt' => $attempt,
                         'provider' => $provider['label'],
                         'model' => $provider['model'],
                         'statusCode' => $response['statusCode'],
@@ -85,6 +92,8 @@ final class AiChatGateway implements AiChatGatewayInterface
                     // Format failure is a prompt/model issue — do not multiply spend
                     // by silently cascading to every configured fallback.
                     $this->logger->warning('AI response format invalid; not cascading to fallbacks.', [
+                        'requestId' => $this->requestId(),
+                        'attempt' => $attempt,
                         'provider' => $provider['label'],
                         'model' => $provider['model'],
                         'contentLength' => mb_strlen($rawContent),
@@ -97,6 +106,9 @@ final class AiChatGateway implements AiChatGatewayInterface
                 }
 
                 $this->logger->info('AI provider selected for response.', [
+                    'requestId' => $this->requestId(),
+                    'attempt' => $attempt,
+                    'fallbackCount' => $attempt - 1,
                     'provider' => $provider['label'],
                     'model' => $provider['model'],
                     'statusCode' => $response['statusCode'],
@@ -109,6 +121,7 @@ final class AiChatGateway implements AiChatGatewayInterface
                         $response['completionTokens']
                     ),
                     'formatValidated' => true,
+                    'totalAiMs' => round((hrtime(true) - $startedAt) / 1_000_000, 2),
                 ]);
 
                 return new Message('assistant', $validatedContent);
@@ -116,9 +129,12 @@ final class AiChatGateway implements AiChatGatewayInterface
                 $lastException = $exception;
 
                 $this->logger->error('AI provider request failed.', [
+                    'requestId' => $this->requestId(),
+                    'attempt' => $attempt,
                     'provider' => $provider['label'],
                     'model' => $provider['model'],
                     'exceptionClass' => $exception::class,
+                    'totalAiMs' => round((hrtime(true) - $startedAt) / 1_000_000, 2),
                 ]);
 
                 if ($this->shouldStopCascading($exception)) {
@@ -148,5 +164,14 @@ final class AiChatGateway implements AiChatGatewayInterface
         return str_contains($message, 'invalid reply format')
             || str_contains($message, 'invalid response')
             || str_contains($message, 'rejected the request');
+    }
+
+    private function requestId(): string
+    {
+        $requestId = (string) $this->requestStack->getCurrentRequest()?->headers->get('X-Request-Id', '');
+
+        return preg_match('/\A[A-Fa-f0-9-]{16,64}\z/', $requestId) === 1
+            ? $requestId
+            : 'unknown';
     }
 }

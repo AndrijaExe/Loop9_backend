@@ -38,8 +38,13 @@ final class SteamAuthController
             return new JsonResponse(null, 204);
         }
 
+        $startedAt = hrtime(true);
+        $requestId = RequestMonitor::requestId($request);
         $ip = $request->getClientIp() ?? 'unknown';
+
+        $rateLimitStartedAt = hrtime(true);
         $rateLimit = $this->authLimiterFactory->create(hash('sha256', 'auth|' . $ip))->consume(1);
+        $rateLimitMs = RequestMonitor::elapsedMs($rateLimitStartedAt);
 
         if (!$rateLimit->isAccepted()) {
             return new JsonResponse([
@@ -53,28 +58,58 @@ final class SteamAuthController
             ], 503);
         }
 
+        $ticketValidationStartedAt = hrtime(true);
         $ticket = $this->extractTicket($request);
+        $ticketValidationMs = RequestMonitor::elapsedMs($ticketValidationStartedAt);
+
+        $steamVerifyStartedAt = hrtime(true);
         $steamId = $this->steamTickets->verify($ticket);
+        $steamVerifyMs = RequestMonitor::elapsedMs($steamVerifyStartedAt);
 
         if ($steamId === null) {
+            $this->logger->warning('Steam ticket rejected.', [
+                'requestId' => $requestId,
+                'ip' => $ip,
+                'timingMs' => [
+                    'rateLimit' => $rateLimitMs,
+                    'ticketValidation' => $ticketValidationMs,
+                    'steamVerify' => $steamVerifyMs,
+                    'total' => RequestMonitor::elapsedMs($startedAt),
+                ],
+            ]);
+
             return new JsonResponse([
                 'error' => ['message' => 'Steam ticket rejected.', 'code' => 'STEAM_TICKET_INVALID'],
-            ], 403);
+            ], 403, [
+                'X-Request-Id' => $requestId,
+            ]);
         }
 
         $playerId = 'steam-' . $steamId;
+        $tokenIssueStartedAt = hrtime(true);
         $issued = $this->sessionTokens->issue($playerId);
+        $tokenIssueMs = RequestMonitor::elapsedMs($tokenIssueStartedAt);
 
         $this->logger->info('Steam session token issued.', [
+            'requestId' => $requestId,
             'playerIdHash' => hash('sha256', $playerId),
             'ip' => $ip,
+            'timingMs' => [
+                'rateLimit' => $rateLimitMs,
+                'ticketValidation' => $ticketValidationMs,
+                'steamVerify' => $steamVerifyMs,
+                'tokenIssue' => $tokenIssueMs,
+                'total' => RequestMonitor::elapsedMs($startedAt),
+            ],
         ]);
 
         return new JsonResponse([
             'token' => $issued['token'],
             'expires_at' => $issued['expiresAt'],
             'player_id' => $playerId,
-        ], 200);
+        ], 200, [
+            'X-Request-Id' => $requestId,
+        ]);
     }
 
     private function extractTicket(Request $request): string

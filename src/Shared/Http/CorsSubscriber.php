@@ -37,7 +37,8 @@ final class CorsSubscriber implements EventSubscriberInterface
         }
 
         $response->headers->set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-        $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, X-Game-Token, X-Player-Id, X-Session-Token');
+        $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, X-Game-Token, X-Player-Id, X-Session-Token, X-Request-Id');
+        $response->headers->set('Access-Control-Expose-Headers', 'X-Request-Id');
         $response->headers->set('Access-Control-Max-Age', '600');
 
         if ($request->isMethod(Request::METHOD_OPTIONS)) {

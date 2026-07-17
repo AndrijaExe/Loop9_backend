@@ -14,6 +14,7 @@ use App\Infrastructure\AI\OpenAiCompatibleHttpClientInterface;
 use App\Infrastructure\AI\PromptFactory;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 final class AiChatGatewayTest extends TestCase
 {
@@ -194,6 +195,7 @@ final class AiChatGatewayTest extends TestCase
             replyFormatValidator: new AssistantReplyFormatValidator(),
             costEstimator: new CostEstimator(),
             logger: new NullLogger(),
+            requestStack: new RequestStack(),
         );
     }
 
