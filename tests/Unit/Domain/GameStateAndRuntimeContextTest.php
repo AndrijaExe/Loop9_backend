@@ -46,6 +46,14 @@ final class GameStateAndRuntimeContextTest extends TestCase
         self::assertFalse($context->state()->isDisrespectful());
     }
 
+    public function testDependencyToneThresholdMatchesTunedEndingRange(): void
+    {
+        self::assertTrue(GameState::fromArray(['dependency' => 0.45])->isModeratelyDependent());
+        self::assertFalse(GameState::fromArray(['dependency' => 0.44])->isModeratelyDependent());
+        self::assertTrue(GameState::fromArray(['dependency' => 0.62])->isHighDependency());
+        self::assertFalse(GameState::fromArray(['dependency' => 0.61])->isHighDependency());
+    }
+
     public function testClampsLoopIndexToValidRange(): void
     {
         self::assertSame(1, RuntimeContext::fromArray(['loop_index' => 0])->loopIndex());

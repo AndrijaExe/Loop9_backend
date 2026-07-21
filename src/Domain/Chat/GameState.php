@@ -104,7 +104,13 @@ final class GameState
 
     public function isHighDependency(): bool
     {
-        return $this->dependency !== null && $this->dependency >= 0.75;
+        return $this->dependency !== null && $this->dependency >= 0.62;
+    }
+
+    public function isModeratelyDependent(): bool
+    {
+        // Dependency begins shaping the Obedient path around this range.
+        return $this->dependency !== null && $this->dependency >= 0.45;
     }
 
     /**

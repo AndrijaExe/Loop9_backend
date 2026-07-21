@@ -13,7 +13,11 @@ use PHPUnit\Framework\TestCase;
 final class SafeChatFallbackFactoryTest extends TestCase
 {
     #[DataProvider('fallbackCases')]
-    public function testFallbackAlwaysMatchesAssistantContract(string $language, string $reason): void
+    public function testFallbackAlwaysMatchesAssistantContract(
+        string $language,
+        string $reason,
+        string $expectedFragment,
+    ): void
     {
         $message = (new SafeChatFallbackFactory())->create(
             RuntimeContext::fromArray(['language' => $language]),
@@ -23,16 +27,20 @@ final class SafeChatFallbackFactoryTest extends TestCase
         self::assertNotNull(
             (new AssistantReplyFormatValidator())->normalizeAndValidate($message->content())
         );
+        self::assertStringContainsString($expectedFragment, $message->content());
     }
 
     /**
-     * @return iterable<string, array{string, string}>
+     * @return iterable<string, array{string, string, string}>
      */
     public static function fallbackCases(): iterable
     {
-        yield 'English blocked' => ['en', 'sexual'];
-        yield 'English unavailable' => ['en', 'moderation_unavailable'];
-        yield 'Serbian blocked' => ['sr', 'hate'];
-        yield 'Serbian unavailable' => ['Serbian', 'moderation_unavailable'];
+        yield 'English blocked' => ['en', 'sexual', 'Leave that alone'];
+        yield 'English unavailable' => ['en', 'moderation_unavailable', 'line is breaking up'];
+        yield 'Serbian blocked' => ['sr', 'hate', 'Pusti to'];
+        yield 'Serbian unavailable' => ['Serbian', 'moderation_unavailable', 'Veza pucketa'];
+        yield 'German blocked' => ['de', 'hate', 'Lass das'];
+        yield 'French unavailable' => ['fr', 'moderation_unavailable', 'La ligne coupe'];
+        yield 'Russian blocked' => ['ru', 'hate', 'Оставь это'];
     }
 }

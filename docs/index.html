@@ -13,11 +13,7 @@
       --accent: #4cc9f0;
       --ok: #57cc99;
     }
-
-    * {
-      box-sizing: border-box;
-    }
-
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
@@ -25,13 +21,7 @@
       color: var(--text);
       line-height: 1.6;
     }
-
-    .wrap {
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 48px 20px 80px;
-    }
-
+    .wrap { max-width: 900px; margin: 0 auto; padding: 48px 20px 80px; }
     .card {
       background: var(--card);
       border: 1px solid #2b3240;
@@ -39,21 +29,10 @@
       padding: 24px;
       margin-bottom: 16px;
     }
-
-    h1, h2 {
-      margin-top: 0;
-      line-height: 1.25;
-    }
-
-    h1 {
-      font-size: 2rem;
-      margin-bottom: 8px;
-    }
-
-    .muted {
-      color: var(--muted);
-    }
-
+    h1, h2 { margin-top: 0; line-height: 1.25; }
+    h1 { font-size: 2rem; margin-bottom: 8px; }
+    .muted { color: var(--muted); }
+    a { color: var(--accent); }
     code {
       background: #0f141b;
       border: 1px solid #273244;
@@ -61,43 +40,43 @@
       border-radius: 6px;
       color: var(--accent);
     }
-
-    ul {
-      padding-left: 20px;
-      margin: 10px 0;
-    }
-
-    .ok {
-      color: var(--ok);
-      font-weight: 600;
-    }
+    ul { padding-left: 20px; margin: 10px 0; }
+    .ok { color: var(--ok); font-weight: 600; }
   </style>
 </head>
 <body>
   <main class="wrap">
     <section class="card">
       <h1>Loop9 Backend</h1>
-      <p class="muted">Symfony 8 API for game chat pipeline with rate limiting and AI provider fallback routing.</p>
-      <p class="ok">Deployment status: managed by GitHub Actions on push to main.</p>
+      <p class="muted">Symfony 8 API for Steam-authenticated AI chat, quotas, moderation, and run telemetry.</p>
+      <p class="ok">Steam App ID 4982260 · Health check <code>/readyz</code></p>
     </section>
 
     <section class="card">
-      <h2>API Endpoint</h2>
-      <p><code>POST /api/chat</code></p>
+      <h2>Maintained documentation</h2>
       <ul>
-        <li>Auth header: <code>X-Game-Token</code></li>
-        <li>Quota key: <code>player_id</code> or <code>X-Player-Id</code></li>
-        <li>Output format: game-ready assistant message payload</li>
+        <li><a href="../ARCHITECTURE.md">ARCHITECTURE.md</a> — layers and pipelines</li>
+        <li><a href="./API.md">API.md</a> — endpoints and contracts</li>
+        <li><a href="./CONFIGURATION.md">CONFIGURATION.md</a> — environment variables</li>
+        <li><a href="./AI_PIPELINE.md">AI_PIPELINE.md</a> — prompts, routing, moderation</li>
+        <li><a href="./SECURITY_AND_PRIVACY.md">SECURITY_AND_PRIVACY.md</a> — auth and privacy</li>
+        <li><a href="./OPERATIONS.md">OPERATIONS.md</a> — deploy and runbooks</li>
+        <li><a href="./DEVELOPMENT_AND_TESTING.md">DEVELOPMENT_AND_TESTING.md</a> — local setup and tests</li>
       </ul>
+      <p class="muted">GitHub Pages for this folder is published manually via <code>workflow_dispatch</code> (not on every push to main).</p>
     </section>
 
     <section class="card">
-      <h2>Runtime Notes</h2>
+      <h2>API surface</h2>
       <ul>
-        <li>Global API error envelope via exception subscriber</li>
-        <li>CORS handling for <code>/api/*</code> routes</li>
-        <li>Provider ordering depends on <code>loop_index</code></li>
+        <li><code>POST /api/auth/steam</code> — Steam ticket → session token</li>
+        <li><code>POST /api/chat</code> — preferred auth header <code>X-Session-Token</code></li>
+        <li><code>POST /api/telemetry/run</code> — anonymous run-finished telemetry</li>
+        <li><code>GET /healthz</code> — liveness</li>
+        <li><code>GET /readyz</code> — readiness</li>
+        <li><code>GET /privacy</code> — public privacy policy</li>
       </ul>
+      <p>Legacy <code>X-Game-Token</code> auth is non-production only and rejected by readiness checks when <code>APP_ENV=prod</code>.</p>
     </section>
   </main>
 </body>
