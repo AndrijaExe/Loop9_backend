@@ -2,6 +2,6 @@
 
 controllers:
     resource:
-        path: ../src/
-        namespace: App
+        path: ../src/Adapter/Http/
+        namespace: App\Adapter\Http
     type: attribute

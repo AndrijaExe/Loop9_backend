@@ -9,6 +9,14 @@ services:
     App\:
         resource: '../src/'
 
-    App\Infrastructure\AI\OpenAiCompatibleHttpClientInterface:
-        alias: App\Infrastructure\AI\OpenAiCompatibleHttpClient
+    App\Model\Chat\AiChatGateway:
+        alias: App\Adapter\AI\OpenAiCompatibleAiChatGateway
+        public: false
+
+    App\Model\Chat\ContentSafetyGateway:
+        alias: App\Adapter\AI\OpenAiContentSafetyGateway
+        public: false
+
+    App\Adapter\AI\OpenAiCompatibleHttpClientInterface:
+        alias: App\Adapter\AI\OpenAiCompatibleHttpClient
         public: false

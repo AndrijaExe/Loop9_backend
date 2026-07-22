@@ -36,10 +36,10 @@ Config: `phpunit.dist.xml` · command: `composer test` / `php bin/phpunit`
 
 | Area | Examples |
 |---|---|
-| Functional HTTP | chat, steam auth, telemetry, privacy |
-| Domain | routing policy, game state, reply format, local safety, fallbacks |
-| AI infra | gateway, HTTP client, moderation gateway, prompt factory, cost estimator |
-| Auth / config | session issuer, Steam verifier, authenticator, production validator, request monitor |
+| `tests/E2E` | chat, Steam auth, telemetry, privacy HTTP contracts |
+| `tests/Unit/Model/Chat` | routing policy, game state, reply format, local safety, fallbacks |
+| `tests/Unit/Application` | chat use-case orchestration and DTO output |
+| `tests/Unit/Adapter` | AI, auth, HTTP and configuration adapters |
 
 Known gaps:
 

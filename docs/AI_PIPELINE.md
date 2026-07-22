@@ -28,7 +28,7 @@ Tiers map to configured primary / fallback / fallback2 providers via env.
 
 ## Cascade and deadlines
 
-`AiChatGateway`:
+`OpenAiCompatibleAiChatGateway`:
 
 - total AI deadline: **45 seconds**
 - per-attempt HTTP timeout defaults around **30 seconds**, clipped by remaining budget
@@ -49,7 +49,7 @@ Assistant text must end with:
 
 ## Moderation
 
-Order in `SendChatMessageHandler`:
+Order in `ChatService`:
 
 1. Local safety detector (PII / copyright-request style checks)
 2. OpenAI Moderations API on input

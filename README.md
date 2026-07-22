@@ -20,12 +20,12 @@ Public Pages landing page: [`docs/index.html`](docs/index.html) (manual workflow
 
 ## Architecture
 
-Hexagonal / DDD-lite layout:
+SRWA-style hexagonal / DDD-lite layout:
 
-- `src/Domain` — value objects, ports, pure policies/validators
-- `src/Application` — use-case handlers (`SendChatMessageHandler`)
-- `src/Infrastructure` — HTTP, AI transport, auth, rate limits
-- `src/Shared` — CORS and JSON error envelope
+- `src/Model` — value objects, outbound ports, pure policies and validators
+- `src/Application` — use-case services and DTOs (`ChatService`, `ChatResponseDTO`)
+- `src/Adapter` — Symfony HTTP, event subscribers, Steam auth, AI transport,
+  configuration and Redis-backed rate limits
 - `config/prompts` — externalized system prompts
 
 ## Stack

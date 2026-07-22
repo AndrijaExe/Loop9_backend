@@ -2,15 +2,18 @@
 
 Symfony 8 / PHP 8.4 backend for Loop 9 Steam auth, AI chat, quotas, moderation, and run telemetry.
 
-Hexagonal / DDD-lite layout:
+SRWA-style hexagonal / DDD-lite layout:
 
 | Layer | Path | Responsibility |
 |---|---|---|
-| Domain | `src/Domain` | Pure policies, value objects, validators |
-| Application | `src/Application` | Use-case handlers (`SendChatMessageHandler`) |
-| Infrastructure | `src/Infrastructure` | HTTP, AI transport, auth, Redis-backed limits |
-| Shared | `src/Shared` | CORS, JSON error envelope |
+| Model | `src/Model` | Pure policies, value objects, validators, outbound ports |
+| Application | `src/Application` | Use-case services and DTOs (`ChatService`) |
+| Adapter | `src/Adapter` | HTTP, event subscribers, AI transport, Steam auth, configuration, Redis-backed limits |
 | Prompts | `config/prompts` | Externalized system prompts |
+
+Dependencies point inward: HTTP adapters call Application services, Application
+depends only on Model types and ports, and concrete AI adapters implement those
+ports through explicit bindings in `config/services.yaml`.
 
 ## Request pipelines
 
@@ -30,7 +33,7 @@ flowchart TB
   A --> Token[SessionTokenIssuer]
   C --> Auth[GameTokenAuthenticator]
   C --> Quotas[ChatRateLimiter]
-  C --> Handler[SendChatMessageHandler]
+  C --> Handler[ChatService]
   Handler --> ModIn[Input moderation]
   ModIn --> AI[AiChatGateway]
   AI --> ModOut[Output moderation]
@@ -39,7 +42,7 @@ flowchart TB
 
 ## Chat use-case
 
-`SendChatMessageHandler`:
+`ChatService`:
 
 1. Local + OpenAI moderation on input (fail-closed)
 2. Prompt assembly (`PromptFactory` + compact/full system prompts)
