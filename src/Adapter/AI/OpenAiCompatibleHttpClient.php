@@ -35,12 +35,13 @@ final class OpenAiCompatibleHttpClient implements OpenAiCompatibleHttpClientInte
         $payload = [
             'model' => $provider['model'],
             'messages' => $messages,
-            'temperature' => 0.7,
         ];
 
         if (str_contains($provider['url'], 'api.openai.com')) {
             $payload['max_completion_tokens'] = $maxTokens;
+            $payload['reasoning_effort'] = 'none';
         } else {
+            $payload['temperature'] = 0.7;
             $payload['max_tokens'] = $maxTokens;
         }
 
@@ -129,7 +130,7 @@ final class OpenAiCompatibleHttpClient implements OpenAiCompatibleHttpClientInte
      * Safe summary of provider error payloads for logs (no prompt/content echo).
      *
      * @param array<string, mixed> $data
-     * @return array{type?: string, code?: string}
+     * @return array{type?: string, code?: string, param?: string}
      */
     public function summarizeErrorPayload(array $data): array
     {
@@ -139,7 +140,7 @@ final class OpenAiCompatibleHttpClient implements OpenAiCompatibleHttpClientInte
         }
 
         $summary = [];
-        foreach (['type', 'code'] as $field) {
+        foreach (['type', 'code', 'param'] as $field) {
             if (isset($error[$field]) && is_scalar($error[$field])) {
                 $value = (string) $error[$field];
                 if (preg_match('/\A[A-Za-z0-9_.:-]{1,64}\z/', $value) === 1) {

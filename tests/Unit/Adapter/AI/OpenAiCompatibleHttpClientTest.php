@@ -24,6 +24,7 @@ final class OpenAiCompatibleHttpClientTest extends TestCase
             'error' => [
                 'type' => 'invalid_request_error',
                 'code' => 'context_length_exceeded',
+                'param' => 'temperature',
                 'message' => str_repeat('secret player prompt echo ', 20),
             ],
             'choices' => [
@@ -33,6 +34,7 @@ final class OpenAiCompatibleHttpClientTest extends TestCase
 
         self::assertSame('invalid_request_error', $summary['type'] ?? null);
         self::assertSame('context_length_exceeded', $summary['code'] ?? null);
+        self::assertSame('temperature', $summary['param'] ?? null);
         self::assertArrayNotHasKey('message', $summary);
         $encodedSummary = json_encode($summary, JSON_THROW_ON_ERROR);
         self::assertStringNotContainsString('secret player prompt echo', $encodedSummary);
@@ -52,6 +54,65 @@ final class OpenAiCompatibleHttpClientTest extends TestCase
                 'code' => str_repeat('x', 65),
             ],
         ]));
+    }
+
+    public function testOpenAiPayloadOmitsCustomTemperature(): void
+    {
+        $http = new MockHttpClient(function (string $method, string $url, array $options): MockResponse {
+            self::assertSame('POST', $method);
+            self::assertSame('https://api.openai.com/v1/chat/completions', $url);
+            $payload = json_decode((string) $options['body'], true, 16, JSON_THROW_ON_ERROR);
+            self::assertArrayNotHasKey('temperature', $payload);
+            self::assertSame(90, $payload['max_completion_tokens'] ?? null);
+            self::assertSame('none', $payload['reasoning_effort'] ?? null);
+            self::assertArrayNotHasKey('max_tokens', $payload);
+
+            return $this->validCompletionResponse();
+        });
+
+        $client = new OpenAiCompatibleHttpClient($http, new NullLogger());
+        $response = $client->chatCompletion(
+            [
+                'label' => 'fallback1',
+                'url' => 'https://api.openai.com/v1/chat/completions',
+                'apiKey' => 'key',
+                'model' => 'gpt-5.6-luna',
+                'verifyTls' => true,
+            ],
+            [['role' => 'user', 'content' => 'hi']],
+            90,
+        );
+
+        self::assertSame(200, $response['statusCode']);
+    }
+
+    public function testGroqPayloadKeepsSamplingAndCompatibleTokenField(): void
+    {
+        $http = new MockHttpClient(function (string $method, string $url, array $options): MockResponse {
+            self::assertSame('POST', $method);
+            self::assertSame('https://api.groq.com/openai/v1/chat/completions', $url);
+            $payload = json_decode((string) $options['body'], true, 16, JSON_THROW_ON_ERROR);
+            self::assertSame(0.7, $payload['temperature'] ?? null);
+            self::assertSame(90, $payload['max_tokens'] ?? null);
+            self::assertArrayNotHasKey('max_completion_tokens', $payload);
+
+            return $this->validCompletionResponse();
+        });
+
+        $client = new OpenAiCompatibleHttpClient($http, new NullLogger());
+        $response = $client->chatCompletion(
+            [
+                'label' => 'fallback2',
+                'url' => 'https://api.groq.com/openai/v1/chat/completions',
+                'apiKey' => 'key',
+                'model' => 'llama-3.3-70b-versatile',
+                'verifyTls' => true,
+            ],
+            [['role' => 'user', 'content' => 'hi']],
+            90,
+        );
+
+        self::assertSame(200, $response['statusCode']);
     }
 
     public function testRejectsExhaustedTimeoutBudget(): void
@@ -100,5 +161,20 @@ final class OpenAiCompatibleHttpClientTest extends TestCase
             [['role' => 'user', 'content' => 'hi']],
             64,
         );
+    }
+
+    private function validCompletionResponse(): MockResponse
+    {
+        return new MockResponse(json_encode([
+            'choices' => [[
+                'message' => [
+                    'content' => 'Reply.[STATE]KINDNESS=0;SUSPICION=0',
+                ],
+            ]],
+            'usage' => [
+                'prompt_tokens' => 10,
+                'completion_tokens' => 5,
+            ],
+        ], JSON_THROW_ON_ERROR), ['http_code' => 200]);
     }
 }
