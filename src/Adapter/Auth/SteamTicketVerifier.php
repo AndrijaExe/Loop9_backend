@@ -43,8 +43,10 @@ final class SteamTicketVerifier
 
         try {
             $response = $this->httpClient->request('GET', self::VERIFY_URL, [
+                'headers' => [
+                    'x-webapi-key' => $this->webApiKey,
+                ],
                 'query' => [
-                    'key' => $this->webApiKey,
                     'appid' => $this->appId,
                     'ticket' => $ticketHex,
                     'identity' => self::TICKET_IDENTITY,
@@ -52,10 +54,21 @@ final class SteamTicketVerifier
                 'timeout' => 10,
             ]);
 
+            $statusCode = $response->getStatusCode();
+            if ($statusCode !== 200) {
+                $this->logger->error('Steam ticket verification upstream rejected request.', [
+                    'statusCode' => $statusCode,
+                ]);
+
+                return null;
+            }
+
             $data = $response->toArray(false);
         } catch (\Throwable $e) {
             $this->logger->error('Steam ticket verification request failed.', [
-                'exception' => $e->getMessage(),
+                // Exception messages from HTTP clients can contain the complete
+                // request URL. Never log them because the URL carries the ticket.
+                'exceptionClass' => $e::class,
             ]);
 
             return null;
