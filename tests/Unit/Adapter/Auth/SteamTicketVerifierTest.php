@@ -17,7 +17,7 @@ final class SteamTicketVerifierTest extends TestCase
         $client = new MockHttpClient(function (string $method, string $url, array $options): MockResponse {
             self::assertSame('GET', $method);
             self::assertStringStartsWith(
-                'https://partner.steam-api.com/ISteamUserAuth/AuthenticateUserTicket/v1/',
+                'https://api.steampowered.com/ISteamUserAuth/AuthenticateUserTicket/v1/',
                 $url,
             );
             self::assertStringNotContainsString('key=', $url);
@@ -47,7 +47,7 @@ final class SteamTicketVerifierTest extends TestCase
         self::assertSame('76561198000000001', $verifier->verify('deadbeef'));
     }
 
-    public function testReturnsNullWhenPublisherEndpointRejectsKey(): void
+    public function testReturnsNullWhenSteamEndpointRejectsKey(): void
     {
         $client = new MockHttpClient(new MockResponse('Access denied.', ['http_code' => 403]));
         $verifier = new SteamTicketVerifier($client, new NullLogger(), 'wrong-key', '480');
