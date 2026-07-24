@@ -14,7 +14,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 final class SteamTicketVerifier
 {
-    private const VERIFY_URL = 'https://api.steampowered.com/ISteamUserAuth/AuthenticateUserTicket/v1/';
+    private const VERIFY_URL = 'https://partner.steam-api.com/ISteamUserAuth/AuthenticateUserTicket/v1/';
+    private const TICKET_IDENTITY = 'Loop9';
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
@@ -46,6 +47,7 @@ final class SteamTicketVerifier
                     'key' => $this->webApiKey,
                     'appid' => $this->appId,
                     'ticket' => $ticketHex,
+                    'identity' => self::TICKET_IDENTITY,
                 ],
                 'timeout' => 10,
             ]);

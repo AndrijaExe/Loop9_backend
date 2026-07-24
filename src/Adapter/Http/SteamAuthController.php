@@ -20,7 +20,8 @@ use Symfony\Component\Routing\Attribute\Route;
  */
 final class SteamAuthController
 {
-    public const MAX_TICKET_LENGTH = 4096;
+    /** Steam's 2560-byte Web API ticket encoded as hexadecimal. */
+    public const MAX_TICKET_LENGTH = 5120;
 
     public function __construct(
         private readonly SteamTicketVerifier $steamTickets,

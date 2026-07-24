@@ -14,17 +14,28 @@ final class SteamTicketVerifierTest extends TestCase
 {
     public function testReturnsSteamIdForValidTicket(): void
     {
-        $client = new MockHttpClient(new MockResponse(json_encode([
-            'response' => [
-                'params' => [
-                    'result' => 'OK',
-                    'steamid' => '76561198000000001',
-                    'ownersteamid' => '76561198000000001',
-                    'vacbanned' => false,
-                    'publisherbanned' => false,
+        $client = new MockHttpClient(function (string $method, string $url): MockResponse {
+            self::assertSame('GET', $method);
+            self::assertStringStartsWith(
+                'https://partner.steam-api.com/ISteamUserAuth/AuthenticateUserTicket/v1/',
+                $url,
+            );
+            self::assertStringContainsString('appid=480', $url);
+            self::assertStringContainsString('ticket=deadbeef', $url);
+            self::assertStringContainsString('identity=Loop9', $url);
+
+            return new MockResponse(json_encode([
+                'response' => [
+                    'params' => [
+                        'result' => 'OK',
+                        'steamid' => '76561198000000001',
+                        'ownersteamid' => '76561198000000001',
+                        'vacbanned' => false,
+                        'publisherbanned' => false,
+                    ],
                 ],
-            ],
-        ], JSON_THROW_ON_ERROR)));
+            ], JSON_THROW_ON_ERROR));
+        });
 
         $verifier = new SteamTicketVerifier($client, new NullLogger(), 'key', '480');
 

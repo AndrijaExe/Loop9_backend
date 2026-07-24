@@ -10,7 +10,11 @@ use App\Model\Chat\AiChatGateway;
 use App\Model\Chat\ContentSafetyGateway;
 use App\Model\Chat\RuntimeContext;
 use App\Adapter\Auth\SessionTokenIssuer;
+use App\Adapter\Auth\SteamTicketVerifier;
+use Psr\Log\NullLogger;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpClient\MockHttpClient;
+use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class SteamAuthTest extends WebTestCase
 {
@@ -38,6 +42,42 @@ final class SteamAuthTest extends WebTestCase
         $client->request('OPTIONS', '/api/auth/steam');
 
         self::assertResponseStatusCodeSame(204);
+    }
+
+    public function testAcceptsMaximumLengthSteamWebApiTicket(): void
+    {
+        $client = static::createClient();
+        static::getContainer()->set(
+            SteamTicketVerifier::class,
+            $this->configuredSteamVerifier(),
+        );
+
+        $client->request(
+            'POST',
+            '/api/auth/steam',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['ticket' => str_repeat('a', 5120)], JSON_THROW_ON_ERROR),
+        );
+
+        self::assertResponseStatusCodeSame(200);
+    }
+
+    public function testRejectsSteamWebApiTicketAboveMaximumLength(): void
+    {
+        $client = static::createClient();
+        static::getContainer()->set(
+            SteamTicketVerifier::class,
+            $this->configuredSteamVerifier(),
+        );
+
+        $client->request(
+            'POST',
+            '/api/auth/steam',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['ticket' => str_repeat('a', 5122)], JSON_THROW_ON_ERROR),
+        );
+
+        self::assertResponseStatusCodeSame(400);
     }
 
     public function testChatAcceptsValidSessionTokenAndIgnoresClientPlayerId(): void
@@ -96,5 +136,24 @@ final class SteamAuthTest extends WebTestCase
         );
 
         self::assertResponseStatusCodeSame(403);
+    }
+
+    private function configuredSteamVerifier(): SteamTicketVerifier
+    {
+        $response = new MockResponse(json_encode([
+            'response' => [
+                'params' => [
+                    'result' => 'OK',
+                    'steamid' => '76561198000000001',
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        return new SteamTicketVerifier(
+            new MockHttpClient($response),
+            new NullLogger(),
+            'publisher-key',
+            '4982260',
+        );
     }
 }
