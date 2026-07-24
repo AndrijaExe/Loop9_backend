@@ -44,6 +44,43 @@ final class AssistantReplyFormatValidatorTest extends TestCase
         );
     }
 
+    public function testCanonicalizesAlternateStateLabels(): void
+    {
+        self::assertSame(
+            'Keep moving.[STATE]KINDNESS=1;SUSPICION=-1',
+            $this->validator->normalizeAndValidate(
+                'Keep moving. **STATE:** SUSPICION: -1 | KINDNESS: 1'
+            ),
+        );
+    }
+
+    public function testCanonicalizesJsonReply(): void
+    {
+        self::assertSame(
+            'Use the lit elevator.[STATE]KINDNESS=-1;SUSPICION=1',
+            $this->validator->normalizeAndValidate(json_encode([
+                'reply_text' => 'Use the lit elevator.',
+                'state' => ['kindness' => -1, 'suspicion' => 1],
+            ], JSON_THROW_ON_ERROR)),
+        );
+    }
+
+    public function testUsesNeutralStateWhenTrailerIsMissing(): void
+    {
+        self::assertSame(
+            'Just text[STATE]KINDNESS=0;SUSPICION=0',
+            $this->validator->normalizeAndValidate('Just text'),
+        );
+    }
+
+    public function testUsesNeutralStateInsteadOfExposingMalformedMetadata(): void
+    {
+        self::assertSame(
+            'Hi[STATE]KINDNESS=0;SUSPICION=0',
+            $this->validator->normalizeAndValidate('Hi[STATE]KINDNESS=2;SUSPICION=0'),
+        );
+    }
+
     #[DataProvider('invalidReplies')]
     public function testRejectsInvalidReplies(string $input): void
     {
@@ -56,8 +93,6 @@ final class AssistantReplyFormatValidatorTest extends TestCase
     public static function invalidReplies(): iterable
     {
         yield 'empty' => [''];
-        yield 'missing state' => ['Just text'];
-        yield 'invalid delta' => ['Hi[STATE]KINDNESS=2;SUSPICION=0'];
         yield 'duplicate state marker' => ['Hi [STATE] again[STATE]KINDNESS=0;SUSPICION=0'];
         yield 'lowercase duplicate marker' => ['Hi [state] again[STATE]KINDNESS=0;SUSPICION=0'];
         yield 'malformed inline code fence' => ['```textual reply[STATE]KINDNESS=0;SUSPICION=0```'];

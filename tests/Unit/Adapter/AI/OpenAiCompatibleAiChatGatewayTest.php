@@ -40,7 +40,7 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
                 ],
             );
         $http->method('extractContent')->willReturnOnConsecutiveCalls(
-            'bad reply without state',
+            'bad [STATE] duplicate[STATE]KINDNESS=0;SUSPICION=0',
             'Recovered.[STATE]KINDNESS=0;SUSPICION=0',
         );
         $http->expects(self::never())->method('summarizeErrorPayload');
@@ -65,7 +65,9 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
                 'promptTokens' => 10,
                 'completionTokens' => 5,
             ]);
-        $http->method('extractContent')->willReturn('bad reply without state');
+        $http->method('extractContent')->willReturn(
+            'bad [STATE] duplicate[STATE]KINDNESS=0;SUSPICION=0'
+        );
 
         $gateway = $this->makeGateway($http, $this->catalogWithFallback());
 
@@ -98,7 +100,7 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
             );
         $http->expects(self::once())
             ->method('extractContent')
-            ->willReturn('bad reply without state');
+            ->willReturn('bad [STATE] duplicate[STATE]KINDNESS=0;SUSPICION=0');
         $http->expects(self::once())
             ->method('summarizeErrorPayload')
             ->willReturn(['code' => 'invalid_api_key']);
