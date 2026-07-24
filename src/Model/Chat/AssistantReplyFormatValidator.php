@@ -14,19 +14,37 @@ final class AssistantReplyFormatValidator
     {
         $normalized = trim($content);
 
-        if (str_starts_with($normalized, '<reply_text>') && str_ends_with($normalized, '</reply_text>')) {
-            $normalized = substr($normalized, strlen('<reply_text>'), -strlen('</reply_text>'));
-            $normalized = trim($normalized);
+        if (preg_match('/\A```[a-z0-9_-]*[ \t]*\R(.*?)\R?```\z/sui', $normalized, $codeFenceMatch) === 1) {
+            $normalized = trim($codeFenceMatch[1]);
         }
 
-        if ($normalized === '' || str_contains($normalized, "\n") || str_contains($normalized, "\r")) {
+        if (preg_match('/\A<reply_text>\s*(.*?)\s*<\/reply_text>\z/sui', $normalized, $wrapperMatch) === 1) {
+            $normalized = trim($wrapperMatch[1]);
+        }
+
+        $normalized = preg_replace('/\s+/u', ' ', $normalized);
+        if (!is_string($normalized) || $normalized === '') {
             return null;
         }
 
-        if (!preg_match('/^.+\[STATE\]KINDNESS=(-1|0|1);SUSPICION=(-1|0|1)$/u', $normalized)) {
+        if (preg_match(
+            '/\A(?<reply>.+?)\s*\[STATE\]\s*KINDNESS\s*=\s*(?<kindness>-1|0|1)\s*;\s*SUSPICION\s*=\s*(?<suspicion>-1|0|1)\z/ui',
+            $normalized,
+            $matches,
+        ) !== 1) {
             return null;
         }
 
-        return $normalized;
+        $reply = trim($matches['reply']);
+        if ($reply === '' || stripos($reply, '[STATE]') !== false) {
+            return null;
+        }
+
+        return sprintf(
+            '%s[STATE]KINDNESS=%s;SUSPICION=%s',
+            $reply,
+            $matches['kindness'],
+            $matches['suspicion'],
+        );
     }
 }

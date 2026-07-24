@@ -34,6 +34,16 @@ final class AssistantReplyFormatValidatorTest extends TestCase
         );
     }
 
+    public function testCanonicalizesCommonModelFormattingDrift(): void
+    {
+        $input = "```text\nAnswer from Dragojlo.\n[STATE] KINDNESS = 0; SUSPICION = -1\n```";
+
+        self::assertSame(
+            'Answer from Dragojlo.[STATE]KINDNESS=0;SUSPICION=-1',
+            $this->validator->normalizeAndValidate($input),
+        );
+    }
+
     #[DataProvider('invalidReplies')]
     public function testRejectsInvalidReplies(string $input): void
     {
@@ -46,9 +56,10 @@ final class AssistantReplyFormatValidatorTest extends TestCase
     public static function invalidReplies(): iterable
     {
         yield 'empty' => [''];
-        yield 'multiline' => ["Hello\n[STATE]KINDNESS=0;SUSPICION=0"];
         yield 'missing state' => ['Just text'];
-        yield 'spaces around equals' => ['Hi[STATE]KINDNESS = 0;SUSPICION = 0'];
         yield 'invalid delta' => ['Hi[STATE]KINDNESS=2;SUSPICION=0'];
+        yield 'duplicate state marker' => ['Hi [STATE] again[STATE]KINDNESS=0;SUSPICION=0'];
+        yield 'lowercase duplicate marker' => ['Hi [state] again[STATE]KINDNESS=0;SUSPICION=0'];
+        yield 'malformed inline code fence' => ['```textual reply[STATE]KINDNESS=0;SUSPICION=0```'];
     }
 }

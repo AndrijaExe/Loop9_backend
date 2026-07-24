@@ -42,9 +42,14 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
         $startedAt = hrtime(true);
         $lastException = null;
         $attempt = 0;
+        $lastAllowedAttempt = count($providers);
 
         foreach ($providers as $provider) {
             ++$attempt;
+            if ($attempt > $lastAllowedAttempt) {
+                break;
+            }
+
             $remaining = $deadlineAt - microtime(true);
             if ($remaining <= 0.5) {
                 break;
@@ -87,15 +92,27 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                 $validatedContent = $this->replyFormatValidator->normalizeAndValidate($rawContent);
 
                 if ($validatedContent === null) {
-                    // Format failure is a prompt/model issue — do not multiply spend
-                    // by silently cascading to every configured fallback.
-                    $this->logger->warning('AI response format invalid; not cascading to fallbacks.', [
+                    $canTryOneFallback = $attempt < $lastAllowedAttempt;
+                    if ($canTryOneFallback) {
+                        // Once format recovery begins, the very next provider is
+                        // the final paid attempt regardless of its outcome.
+                        $lastAllowedAttempt = $attempt + 1;
+                    }
+
+                    $this->logger->warning('AI response format invalid.', [
                         'requestId' => $this->requestId(),
                         'attempt' => $attempt,
                         'provider' => $provider['label'],
                         'model' => $provider['model'],
                         'contentLength' => mb_strlen($rawContent),
+                        'completionTokens' => $response['completionTokens'],
+                        'maxTokens' => $maxTokens,
+                        'willRetryOnce' => $canTryOneFallback,
                     ]);
+
+                    if ($canTryOneFallback) {
+                        continue;
+                    }
 
                     throw new \RuntimeException(sprintf(
                         'AI provider "%s" returned an invalid reply format.',

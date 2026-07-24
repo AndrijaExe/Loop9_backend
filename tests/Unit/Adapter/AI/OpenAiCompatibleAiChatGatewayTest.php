@@ -18,26 +18,94 @@ use Symfony\Component\HttpFoundation\RequestStack;
 
 final class OpenAiCompatibleAiChatGatewayTest extends TestCase
 {
-    public function testDoesNotCascadeAfterInvalidFormat(): void
+    public function testTriesExactlyOneFallbackAfterInvalidFormat(): void
     {
         $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
-        $http->expects(self::once())
+        $http->expects(self::exactly(2))
+            ->method('chatCompletion')
+            ->willReturnOnConsecutiveCalls(
+                [
+                    'statusCode' => 200,
+                    'data' => [],
+                    'latencyMs' => 12.0,
+                    'promptTokens' => 10,
+                    'completionTokens' => 5,
+                ],
+                [
+                    'statusCode' => 200,
+                    'data' => [],
+                    'latencyMs' => 14.0,
+                    'promptTokens' => 10,
+                    'completionTokens' => 8,
+                ],
+            );
+        $http->method('extractContent')->willReturnOnConsecutiveCalls(
+            'bad reply without state',
+            'Recovered.[STATE]KINDNESS=0;SUSPICION=0',
+        );
+        $http->expects(self::never())->method('summarizeErrorPayload');
+
+        $gateway = $this->makeGateway($http, $this->catalogWithFallback());
+
+        self::assertSame(
+            'Recovered.[STATE]KINDNESS=0;SUSPICION=0',
+            $gateway->ask('hello', new RuntimeContext(loopIndex: 1))->content(),
+        );
+    }
+
+    public function testStopsAfterSecondInvalidFormat(): void
+    {
+        $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
+        $http->expects(self::exactly(2))
             ->method('chatCompletion')
             ->willReturn([
                 'statusCode' => 200,
-                'data' => ['choices' => [['message' => ['content' => 'bad']]]],
+                'data' => [],
                 'latencyMs' => 12.0,
                 'promptTokens' => 10,
                 'completionTokens' => 5,
             ]);
         $http->method('extractContent')->willReturn('bad reply without state');
-        $http->expects(self::never())->method('summarizeErrorPayload');
 
         $gateway = $this->makeGateway($http, $this->catalogWithFallback());
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('invalid reply format');
 
+        $gateway->ask('hello', new RuntimeContext(loopIndex: 1));
+    }
+
+    public function testFormatRecoveryNeverAttemptsAThirdProvider(): void
+    {
+        $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
+        $http->expects(self::exactly(2))
+            ->method('chatCompletion')
+            ->willReturnOnConsecutiveCalls(
+                [
+                    'statusCode' => 200,
+                    'data' => [],
+                    'latencyMs' => 12.0,
+                    'promptTokens' => 10,
+                    'completionTokens' => 5,
+                ],
+                [
+                    'statusCode' => 401,
+                    'data' => ['error' => ['code' => 'invalid_api_key']],
+                    'latencyMs' => 8.0,
+                    'promptTokens' => null,
+                    'completionTokens' => null,
+                ],
+            );
+        $http->expects(self::once())
+            ->method('extractContent')
+            ->willReturn('bad reply without state');
+        $http->expects(self::once())
+            ->method('summarizeErrorPayload')
+            ->willReturn(['code' => 'invalid_api_key']);
+
+        $gateway = $this->makeGateway($http, $this->catalogWithTwoFallbacks());
+
+        $this->expectException(\RuntimeException::class);
         $gateway->ask('hello', new RuntimeContext(loopIndex: 1));
     }
 
@@ -237,6 +305,27 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
             fallback2Url: '',
             fallback2ApiKey: '',
             fallback2Model: '',
+            fallback2TlsVerify: 'true',
+        );
+    }
+
+    private function catalogWithTwoFallbacks(): AiProviderCatalog
+    {
+        return new AiProviderCatalog(
+            appEnv: 'test',
+            primaryUrl: 'https://example.test/v1/chat/completions',
+            primaryApiKey: 'key',
+            primaryModel: 'gpt-best',
+            primaryTlsVerify: 'true',
+            fallbackEnabled: 'true',
+            fallbackUrl: 'https://example.test/fallback/v1/chat/completions',
+            fallbackApiKey: 'fallback-key',
+            fallbackModel: 'gpt-balanced',
+            fallbackTlsVerify: 'true',
+            fallback2Enabled: 'true',
+            fallback2Url: 'https://example.test/cheap/v1/chat/completions',
+            fallback2ApiKey: 'cheap-key',
+            fallback2Model: 'llama-cheap',
             fallback2TlsVerify: 'true',
         );
     }
