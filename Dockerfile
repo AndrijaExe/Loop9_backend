@@ -23,7 +23,9 @@ RUN apt-get update \
     && a2enmod rewrite headers \
     && rm -rf /var/lib/apt/lists/*
 
-ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
+ENV APACHE_DOCUMENT_ROOT=/var/www/html/public \
+    APP_ENV=prod \
+    APP_DEBUG=0
 
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf \
     && sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
@@ -41,6 +43,7 @@ RUN printf '%s\n' \
 
 # Production OPcache: compile once, do not revalidate timestamps in the image.
 RUN printf '%s\n' \
+    'register_argc_argv=0' \
     'opcache.enable=1' \
     'opcache.memory_consumption=128' \
     'opcache.interned_strings_buffer=16' \

@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Adapter\Auth;
 
 use App\Adapter\Auth\SteamTicketVerifier;
+use App\Adapter\Auth\SteamVerificationUnavailableException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Psr\Log\NullLogger;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 
@@ -42,20 +43,29 @@ final class SteamTicketVerifierTest extends TestCase
             ], JSON_THROW_ON_ERROR));
         });
 
-        $verifier = new SteamTicketVerifier($client, new NullLogger(), 'key', '480');
+        $verifier = new SteamTicketVerifier($client, 'key', '480');
 
-        self::assertSame('76561198000000001', $verifier->verify('deadbeef'));
+        $result = $verifier->verify('deadbeef');
+
+        self::assertTrue($result->accepted);
+        self::assertSame('76561198000000001', $result->steamId);
     }
 
-    public function testReturnsNullWhenSteamEndpointRejectsKey(): void
+    public function testThrowsWhenSteamEndpointRejectsKey(): void
     {
         $client = new MockHttpClient(new MockResponse('Access denied.', ['http_code' => 403]));
-        $verifier = new SteamTicketVerifier($client, new NullLogger(), 'wrong-key', '480');
+        $verifier = new SteamTicketVerifier($client, 'wrong-key', '480');
 
-        self::assertNull($verifier->verify('deadbeef'));
+        try {
+            $verifier->verify('deadbeef');
+            self::fail('Expected Steam verification to be unavailable.');
+        } catch (SteamVerificationUnavailableException $exception) {
+            self::assertSame(SteamVerificationUnavailableException::REASON_UPSTREAM_STATUS, $exception->reason);
+            self::assertSame(403, $exception->upstreamStatusCode);
+        }
     }
 
-    public function testReturnsNullForRejectedTicket(): void
+    public function testReturnsRejectedResultForRecognizedTicketError(): void
     {
         $client = new MockHttpClient(new MockResponse(json_encode([
             'response' => [
@@ -63,26 +73,104 @@ final class SteamTicketVerifierTest extends TestCase
             ],
         ], JSON_THROW_ON_ERROR)));
 
-        $verifier = new SteamTicketVerifier($client, new NullLogger(), 'key', '480');
+        $verifier = new SteamTicketVerifier($client, 'key', '480');
 
-        self::assertNull($verifier->verify('deadbeef'));
+        $result = $verifier->verify('deadbeef');
+
+        self::assertFalse($result->accepted);
+        self::assertNull($result->steamId);
     }
 
-    public function testReturnsNullOnTransportError(): void
+    public function testRejectsPublisherBannedAccount(): void
+    {
+        $client = new MockHttpClient(new MockResponse(json_encode([
+            'response' => [
+                'params' => [
+                    'result' => 'OK',
+                    'steamid' => '76561198000000001',
+                    'publisherbanned' => true,
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR)));
+
+        $verifier = new SteamTicketVerifier($client, 'key', '480');
+
+        $result = $verifier->verify('deadbeef');
+        self::assertFalse($result->accepted);
+        self::assertNull($result->steamId);
+    }
+
+    public function testThrowsOnTransportError(): void
     {
         $client = new MockHttpClient(new MockResponse('', ['error' => 'Connection refused']));
 
-        $verifier = new SteamTicketVerifier($client, new NullLogger(), 'key', '480');
+        $verifier = new SteamTicketVerifier($client, 'key', '480');
 
-        self::assertNull($verifier->verify('deadbeef'));
+        try {
+            $verifier->verify('deadbeef');
+            self::fail('Expected Steam verification to be unavailable.');
+        } catch (SteamVerificationUnavailableException $exception) {
+            self::assertSame(SteamVerificationUnavailableException::REASON_TRANSPORT, $exception->reason);
+            self::assertNull($exception->upstreamStatusCode);
+            self::assertNotNull($exception->getPrevious());
+        }
     }
 
-    public function testReturnsNullWhenNotConfigured(): void
+    public function testThrowsWhenNotConfigured(): void
     {
         $client = new MockHttpClient();
-        $verifier = new SteamTicketVerifier($client, new NullLogger(), '', '');
+        $verifier = new SteamTicketVerifier($client, '', '');
 
         self::assertFalse($verifier->isConfigured());
-        self::assertNull($verifier->verify('deadbeef'));
+
+        try {
+            $verifier->verify('deadbeef');
+            self::fail('Expected Steam verification to be unavailable.');
+        } catch (SteamVerificationUnavailableException $exception) {
+            self::assertSame(SteamVerificationUnavailableException::REASON_NOT_CONFIGURED, $exception->reason);
+            self::assertNull($exception->upstreamStatusCode);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    #[DataProvider('malformedSuccessPayloads')]
+    public function testThrowsForMalformedOrUnrecognizedHttp200Payload(array $payload): void
+    {
+        $client = new MockHttpClient(new MockResponse(json_encode($payload, JSON_THROW_ON_ERROR)));
+        $verifier = new SteamTicketVerifier($client, 'key', '480');
+
+        try {
+            $verifier->verify('deadbeef');
+            self::fail('Expected Steam verification to be unavailable.');
+        } catch (SteamVerificationUnavailableException $exception) {
+            self::assertSame(SteamVerificationUnavailableException::REASON_INVALID_RESPONSE, $exception->reason);
+            self::assertSame(200, $exception->upstreamStatusCode);
+        }
+    }
+
+    /**
+     * @return iterable<string, array{0: array<string, mixed>}>
+     */
+    public static function malformedSuccessPayloads(): iterable
+    {
+        yield 'empty payload' => [[]];
+        yield 'unrecognized error' => [[
+            'response' => ['error' => ['message' => 'unknown']],
+        ]];
+        yield 'missing publisher ban status' => [[
+            'response' => ['params' => [
+                'result' => 'OK',
+                'steamid' => '76561198000000001',
+            ]],
+        ]];
+        yield 'non-boolean publisher ban status' => [[
+            'response' => ['params' => [
+                'result' => 'OK',
+                'steamid' => '76561198000000001',
+                'publisherbanned' => 0,
+            ]],
+        ]];
     }
 }

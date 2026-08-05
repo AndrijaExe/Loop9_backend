@@ -6,6 +6,7 @@ namespace App\Adapter\Http;
 
 use App\Adapter\Auth\SessionTokenIssuer;
 use App\Adapter\Auth\SteamTicketVerifier;
+use App\Adapter\Auth\SteamVerificationUnavailableException;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -64,10 +65,36 @@ final class SteamAuthController
         $ticketValidationMs = RequestMonitor::elapsedMs($ticketValidationStartedAt);
 
         $steamVerifyStartedAt = hrtime(true);
-        $steamId = $this->steamTickets->verify($ticket);
+        try {
+            $verification = $this->steamTickets->verify($ticket);
+        } catch (SteamVerificationUnavailableException $exception) {
+            $steamVerifyMs = RequestMonitor::elapsedMs($steamVerifyStartedAt);
+            $this->logger->error('Steam ticket verification unavailable.', [
+                'requestId' => $requestId,
+                'ipHash' => hash('sha256', $ip),
+                'exceptionClass' => $exception::class,
+                'reason' => $exception->reason,
+                'upstreamStatusCode' => $exception->upstreamStatusCode,
+                'timingMs' => [
+                    'rateLimit' => $rateLimitMs,
+                    'ticketValidation' => $ticketValidationMs,
+                    'steamVerify' => $steamVerifyMs,
+                    'total' => RequestMonitor::elapsedMs($startedAt),
+                ],
+            ]);
+
+            return new JsonResponse([
+                'error' => [
+                    'message' => 'Steam ticket verification is temporarily unavailable.',
+                    'code' => 'STEAM_UPSTREAM_UNAVAILABLE',
+                ],
+            ], 503, [
+                'X-Request-Id' => $requestId,
+            ]);
+        }
         $steamVerifyMs = RequestMonitor::elapsedMs($steamVerifyStartedAt);
 
-        if ($steamId === null) {
+        if (!$verification->accepted) {
             $this->logger->warning('Steam ticket rejected.', [
                 'requestId' => $requestId,
                 'ipHash' => hash('sha256', $ip),
@@ -84,6 +111,11 @@ final class SteamAuthController
             ], 403, [
                 'X-Request-Id' => $requestId,
             ]);
+        }
+
+        $steamId = $verification->steamId;
+        if ($steamId === null) {
+            throw new \LogicException('Accepted Steam verification must contain a Steam ID.');
         }
 
         $playerId = 'steam-' . $steamId;

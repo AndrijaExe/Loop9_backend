@@ -7,6 +7,7 @@ namespace App\Tests\Unit\Adapter\AI;
 use App\Model\Chat\ContentSafetyGateway;
 use App\Model\Chat\LocalSafetyDetector;
 use App\Adapter\AI\OpenAiContentSafetyGateway;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -20,7 +21,7 @@ final class OpenAiContentSafetyGatewayTest extends TestCase
         $gateway = $this->makeGateway(new MockResponse(json_encode([
             'results' => [[
                 'flagged' => false,
-                'categories' => ['sexual' => false, 'hate' => false],
+                'categories' => $this->categories(),
             ]],
         ], JSON_THROW_ON_ERROR)));
 
@@ -34,7 +35,7 @@ final class OpenAiContentSafetyGatewayTest extends TestCase
         $gateway = $this->makeGateway(new MockResponse(json_encode([
             'results' => [[
                 'flagged' => true,
-                'categories' => ['sexual' => false, 'self-harm/instructions' => true],
+                'categories' => $this->categories(['self-harm/instructions' => true]),
             ]],
         ], JSON_THROW_ON_ERROR)));
 
@@ -49,6 +50,67 @@ final class OpenAiContentSafetyGatewayTest extends TestCase
         $gateway = $this->makeGateway(new MockResponse('{"results":[]}'));
 
         $decision = $gateway->evaluate('hello', ContentSafetyGateway::STAGE_INPUT);
+
+        self::assertFalse($decision->isSafe());
+        self::assertSame('moderation_unavailable', $decision->reason());
+    }
+
+    #[DataProvider('invalidCategorySchemas')]
+    public function testFailsClosedOnInvalidCategorySchema(mixed $categories): void
+    {
+        $gateway = $this->makeGateway(new MockResponse(json_encode([
+            'results' => [[
+                'flagged' => false,
+                'categories' => $categories,
+            ]],
+        ], JSON_THROW_ON_ERROR)));
+
+        $decision = $gateway->evaluate('hello', ContentSafetyGateway::STAGE_INPUT);
+
+        self::assertFalse($decision->isSafe());
+        self::assertSame('moderation_unavailable', $decision->reason());
+    }
+
+    /**
+     * @return iterable<string, array{0: mixed}>
+     */
+    public static function invalidCategorySchemas(): iterable
+    {
+        yield 'missing categories' => [null];
+        yield 'partial categories' => [['hate' => false]];
+        yield 'non-boolean category' => [self::completeCategories(['hate' => 0])];
+        yield 'invalid extra category' => [self::completeCategories(['debug category' => false])];
+    }
+
+    public function testBoundsDurationRedirectsAndResponseBuffering(): void
+    {
+        $seenOptions = null;
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$seenOptions): MockResponse {
+            self::assertSame('POST', $method);
+            $seenOptions = $options;
+
+            return new MockResponse(json_encode([
+                'results' => [[
+                    'flagged' => false,
+                    'categories' => $this->categories(),
+                ]],
+            ], JSON_THROW_ON_ERROR));
+        });
+
+        self::assertTrue($this->makeGateway(client: $client)
+            ->evaluate('hello', ContentSafetyGateway::STAGE_INPUT)
+            ->isSafe());
+        self::assertSame(3.0, $seenOptions['timeout']);
+        self::assertSame(3.0, $seenOptions['max_duration']);
+        self::assertSame(0, $seenOptions['max_redirects']);
+        self::assertFalse($seenOptions['buffer']);
+    }
+
+    public function testFailsClosedWhenStreamingResponseExceedsByteCap(): void
+    {
+        $body = str_repeat('x', OpenAiContentSafetyGateway::MAX_RESPONSE_BYTES + 1);
+        $decision = $this->makeGateway(new MockResponse($body))
+            ->evaluate('hello', ContentSafetyGateway::STAGE_INPUT);
 
         self::assertFalse($decision->isSafe());
         self::assertSame('moderation_unavailable', $decision->reason());
@@ -85,5 +147,37 @@ final class OpenAiContentSafetyGatewayTest extends TestCase
             model: 'omni-moderation-latest',
             timeoutSeconds: 3,
         );
+    }
+
+    /**
+     * @param array<string, mixed> $overrides
+     * @return array<string, mixed>
+     */
+    private function categories(array $overrides = []): array
+    {
+        return self::completeCategories($overrides);
+    }
+
+    /**
+     * @param array<string, mixed> $overrides
+     * @return array<string, mixed>
+     */
+    private static function completeCategories(array $overrides = []): array
+    {
+        return array_replace([
+            'harassment' => false,
+            'harassment/threatening' => false,
+            'hate' => false,
+            'hate/threatening' => false,
+            'illicit' => false,
+            'illicit/violent' => false,
+            'self-harm' => false,
+            'self-harm/intent' => false,
+            'self-harm/instructions' => false,
+            'sexual' => false,
+            'sexual/minors' => false,
+            'violence' => false,
+            'violence/graphic' => false,
+        ], $overrides);
     }
 }

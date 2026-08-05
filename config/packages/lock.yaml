@@ -1,0 +1,9 @@
+framework:
+    # Local and test processes use host-local locks without requiring Redis.
+    lock: flock
+
+when@prod:
+    framework:
+        # Rate-limiter state and its synchronization must be shared by every
+        # production instance.
+        lock: '%env(REDIS_URL)%'

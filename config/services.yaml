@@ -20,3 +20,26 @@ services:
     App\Adapter\AI\OpenAiCompatibleHttpClientInterface:
         alias: App\Adapter\AI\OpenAiCompatibleHttpClient
         public: false
+
+    # These services emit deliberately sanitized operational telemetry. Keep
+    # them on a dedicated channel so healthy INFO events bypass the production
+    # error buffer without exposing Symfony's secret-bearing http_client logs.
+    App\Adapter\Http\RunTelemetryController:
+        arguments:
+            $logger: '@monolog.logger.telemetry'
+
+    App\Adapter\Http\SteamAuthController:
+        arguments:
+            $logger: '@monolog.logger.telemetry'
+
+    App\Adapter\Http\ChatController:
+        arguments:
+            $logger: '@monolog.logger.telemetry'
+
+    App\Adapter\AI\OpenAiCompatibleAiChatGateway:
+        arguments:
+            $logger: '@monolog.logger.telemetry'
+
+    App\Adapter\AI\OpenAiContentSafetyGateway:
+        arguments:
+            $logger: '@monolog.logger.telemetry'

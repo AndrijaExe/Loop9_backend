@@ -73,12 +73,30 @@ final class AssistantReplyFormatValidatorTest extends TestCase
         );
     }
 
-    public function testUsesNeutralStateInsteadOfExposingMalformedMetadata(): void
+    public function testRejectsMalformedMetadata(): void
     {
-        self::assertSame(
-            'Hi[STATE]KINDNESS=0;SUSPICION=0',
-            $this->validator->normalizeAndValidate('Hi[STATE]KINDNESS=2;SUSPICION=0'),
+        self::assertNull(
+            $this->validator->normalizeAndValidate('Hi[STATE]KINDNESS=2;SUSPICION=0')
         );
+    }
+
+    public function testAcceptsReplyAtUtf8CharacterLimit(): void
+    {
+        $reply = str_repeat('ž', AssistantReplyFormatValidator::MAX_REPLY_CHARACTERS);
+
+        self::assertSame(
+            $reply . '[STATE]KINDNESS=0;SUSPICION=0',
+            $this->validator->normalizeAndValidate($reply),
+        );
+    }
+
+    public function testRejectsOverlongUnicodeReply(): void
+    {
+        $reply = str_repeat('ž', AssistantReplyFormatValidator::MAX_REPLY_CHARACTERS + 1);
+
+        self::assertNull($this->validator->normalizeAndValidate(
+            $reply . '[STATE]KINDNESS=0;SUSPICION=0'
+        ));
     }
 
     #[DataProvider('invalidReplies')]
@@ -96,5 +114,15 @@ final class AssistantReplyFormatValidatorTest extends TestCase
         yield 'duplicate state marker' => ['Hi [STATE] again[STATE]KINDNESS=0;SUSPICION=0'];
         yield 'lowercase duplicate marker' => ['Hi [state] again[STATE]KINDNESS=0;SUSPICION=0'];
         yield 'malformed inline code fence' => ['```textual reply[STATE]KINDNESS=0;SUSPICION=0```'];
+        yield 'unrecognized JSON object' => ['{"status":"ok","trace":"internal"}'];
+        yield 'valid JSON scalar' => ['"debug output"'];
+        yield 'recognized JSON with debug field' => ['{"reply":"Hello.","debug":"hidden"}'];
+        yield 'recognized JSON with invalid delta' => ['{"reply":"Hello.","kindness":2}'];
+        yield 'debug artifact' => ['DEBUG: generated reply'];
+        yield 'analysis artifact with state' => ['Analysis: hidden reasoning[STATE]KINDNESS=0;SUSPICION=0'];
+        yield 'XML artifact' => ['<tool_call>lookup</tool_call>'];
+        yield 'markdown list recovery' => ['- First internal option'];
+        yield 'multiline recovery' => ["First line\nSecond line"];
+        yield 'three sentences' => ['One. Two. Three.'];
     }
 }

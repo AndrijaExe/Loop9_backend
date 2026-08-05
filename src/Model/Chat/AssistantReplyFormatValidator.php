@@ -10,6 +10,8 @@ namespace App\Model\Chat;
  */
 final class AssistantReplyFormatValidator
 {
+    public const MAX_REPLY_CHARACTERS = 280;
+
     public function normalizeAndValidate(string $content): ?string
     {
         $normalized = trim($content);
@@ -22,11 +24,11 @@ final class AssistantReplyFormatValidator
             $normalized = trim($wrapperMatch[1]);
         }
 
-        $jsonReply = $this->normalizeJsonReply($normalized);
-        if ($jsonReply !== null) {
-            return $jsonReply;
+        if ($this->isValidJson($normalized)) {
+            return $this->normalizeJsonReply($normalized);
         }
 
+        $plainTextHadLineBreak = preg_match('/[\r\n]/u', $normalized) === 1;
         $normalized = preg_replace('/\s+/u', ' ', $normalized);
         if (!is_string($normalized) || $normalized === '') {
             return null;
@@ -46,19 +48,11 @@ final class AssistantReplyFormatValidator
                 return $this->canonicalReply($matches['reply'], $kindness, $suspicion);
             }
 
-            // Never expose malformed internal metadata to the player. Keep the
-            // usable reply and make the relationship delta neutral.
-            return $this->canonicalReply($matches['reply'], 0, 0);
+            return null;
         }
 
-        // Some providers occasionally omit the metadata trailer despite the
-        // system prompt. Availability is preferable to a 500; local client-side
-        // intent tracking still runs, while AI deltas remain safely neutral.
-        if (stripos($normalized, 'KINDNESS') !== false || stripos($normalized, 'SUSPICION') !== false) {
-            $metadataOffset = $this->firstMetadataOffset($normalized);
-            if ($metadataOffset !== null) {
-                return $this->canonicalReply(substr($normalized, 0, $metadataOffset), 0, 0);
-            }
+        if ($plainTextHadLineBreak || !$this->isSafePlainTextRecovery($normalized)) {
+            return null;
         }
 
         return $this->canonicalReply($normalized, 0, 0);
@@ -77,24 +71,59 @@ final class AssistantReplyFormatValidator
         }
 
         $data = array_change_key_case($decoded, CASE_LOWER);
-        $reply = null;
-        foreach (['reply_text', 'reply', 'message', 'content'] as $key) {
-            if (isset($data[$key]) && is_string($data[$key]) && trim($data[$key]) !== '') {
-                $reply = $data[$key];
-                break;
-            }
-        }
-        if ($reply === null) {
+        if (count($data) !== count($decoded)) {
             return null;
         }
+        $allowedKeys = ['reply_text', 'reply', 'message', 'content', 'state', 'kindness', 'suspicion'];
+        if (array_diff(array_keys($data), $allowedKeys) !== []) {
+            return null;
+        }
+
+        $replyKeys = array_values(array_filter(
+            ['reply_text', 'reply', 'message', 'content'],
+            static fn (string $key): bool => array_key_exists($key, $data),
+        ));
+        if (count($replyKeys) !== 1
+            || !is_string($data[$replyKeys[0]])
+            || trim($data[$replyKeys[0]]) === '') {
+            return null;
+        }
+        $reply = $data[$replyKeys[0]];
 
         $state = isset($data['state']) && is_array($data['state'])
             ? array_change_key_case($data['state'], CASE_LOWER)
             : [];
-        $kindness = $this->normalizeDelta($data['kindness'] ?? $state['kindness'] ?? null) ?? 0;
-        $suspicion = $this->normalizeDelta($data['suspicion'] ?? $state['suspicion'] ?? null) ?? 0;
+        if (isset($data['state'])
+            && (!is_array($data['state'])
+                || count($state) !== count($data['state'])
+                || array_diff(array_keys($state), ['kindness', 'suspicion']) !== [])) {
+            return null;
+        }
+
+        $kindnessRaw = $data['kindness'] ?? $state['kindness'] ?? 0;
+        $suspicionRaw = $data['suspicion'] ?? $state['suspicion'] ?? 0;
+        $kindness = $this->normalizeDelta($kindnessRaw);
+        $suspicion = $this->normalizeDelta($suspicionRaw);
+        if ($kindness === null || $suspicion === null) {
+            return null;
+        }
 
         return $this->canonicalReply($reply, $kindness, $suspicion);
+    }
+
+    private function isValidJson(string $content): bool
+    {
+        if ($content === '') {
+            return false;
+        }
+
+        try {
+            json_decode($content, true, 16, JSON_THROW_ON_ERROR);
+
+            return true;
+        } catch (\JsonException) {
+            return false;
+        }
     }
 
     private function extractStateDelta(string $state, string $label): ?int
@@ -121,17 +150,17 @@ final class AssistantReplyFormatValidator
         return in_array($delta, [-1, 0, 1], true) ? $delta : null;
     }
 
-    private function firstMetadataOffset(string $content): ?int
+    private function isSafePlainTextRecovery(string $content): bool
     {
-        $offsets = [];
-        foreach (['[STATE]', 'STATE:', 'KINDNESS', 'SUSPICION'] as $marker) {
-            $offset = stripos($content, $marker);
-            if ($offset !== false) {
-                $offsets[] = $offset;
-            }
+        if (!$this->isSafePlayerReply($content)
+            || preg_match('/[\r\n]/u', $content) === 1
+            || preg_match('/[{}\[\]<>`]/u', $content) === 1
+            || preg_match('/\b(?:STATE|KINDNESS|SUSPICION)\b/ui', $content) === 1
+            || preg_match('/\A\s*(?:[-*#>]|\d+[.)])\s+/u', $content) === 1) {
+            return false;
         }
 
-        return $offsets === [] ? null : min($offsets);
+        return true;
     }
 
     private function canonicalReply(string $reply, int $kindness, int $suspicion): ?string
@@ -139,7 +168,7 @@ final class AssistantReplyFormatValidator
         $reply = preg_replace('/<\/?reply_text>/ui', '', $reply);
         $reply = preg_replace('/\s+/u', ' ', is_string($reply) ? $reply : '');
         $reply = trim(is_string($reply) ? $reply : '', " \t\n\r\0\x0B\"'");
-        if ($reply === '' || stripos($reply, '[STATE]') !== false || str_contains($reply, '```')) {
+        if (!$this->isSafePlayerReply($reply) || stripos($reply, '[STATE]') !== false) {
             return null;
         }
 
@@ -149,5 +178,23 @@ final class AssistantReplyFormatValidator
             $kindness,
             $suspicion,
         );
+    }
+
+    private function isSafePlayerReply(string $reply): bool
+    {
+        if ($reply === ''
+            || !mb_check_encoding($reply, 'UTF-8')
+            || mb_strlen($reply, 'UTF-8') > self::MAX_REPLY_CHARACTERS
+            || preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', $reply) === 1
+            || str_contains($reply, '```')
+            || preg_match('/[{}]/u', $reply) === 1
+            || preg_match('/<[^>]+>/u', $reply) === 1
+            || preg_match('/\A\s*(?:debug|analysis|system|assistant|developer|tool|function)(?:\s+message)?\s*:/ui', $reply) === 1) {
+            return false;
+        }
+
+        preg_match_all('/[.!?]+(?=\s|\z)/u', $reply, $sentenceEndings);
+
+        return count($sentenceEndings[0]) <= 2;
     }
 }

@@ -11,7 +11,6 @@ use App\Model\Chat\ContentSafetyGateway;
 use App\Model\Chat\RuntimeContext;
 use App\Adapter\Auth\SessionTokenIssuer;
 use App\Adapter\Auth\SteamTicketVerifier;
-use Psr\Log\NullLogger;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -60,6 +59,113 @@ final class SteamAuthTest extends WebTestCase
         );
 
         self::assertResponseStatusCodeSame(200);
+    }
+
+    public function testMapsRejectedTicketToForbidden(): void
+    {
+        $client = static::createClient();
+        static::getContainer()->set(
+            SteamTicketVerifier::class,
+            $this->steamVerifierWithResponse([
+                'response' => [
+                    'error' => ['errorcode' => 3, 'errordesc' => 'Invalid parameter'],
+                ],
+            ]),
+        );
+
+        $client->request(
+            'POST',
+            '/api/auth/steam',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['ticket' => 'deadbeef'], JSON_THROW_ON_ERROR),
+        );
+
+        self::assertResponseStatusCodeSame(403);
+        $payload = json_decode($client->getResponse()->getContent() ?: '', true);
+        self::assertSame('STEAM_TICKET_INVALID', $payload['error']['code'] ?? null);
+    }
+
+    public function testMapsSteamUpstreamFailureToServiceUnavailable(): void
+    {
+        $client = static::createClient();
+        static::getContainer()->set(
+            SteamTicketVerifier::class,
+            new SteamTicketVerifier(
+                new MockHttpClient(new MockResponse('Unavailable', ['http_code' => 503])),
+                'publisher-key',
+                '4982260',
+            ),
+        );
+
+        $client->request(
+            'POST',
+            '/api/auth/steam',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['ticket' => 'deadbeef'], JSON_THROW_ON_ERROR),
+        );
+
+        self::assertResponseStatusCodeSame(503);
+        $payload = json_decode($client->getResponse()->getContent() ?: '', true);
+        self::assertSame('STEAM_UPSTREAM_UNAVAILABLE', $payload['error']['code'] ?? null);
+        self::assertSame(
+            'Steam ticket verification is temporarily unavailable.',
+            $payload['error']['message'] ?? null,
+        );
+    }
+
+    public function testMapsMalformedSteamSuccessPayloadToServiceUnavailable(): void
+    {
+        $client = static::createClient();
+        static::getContainer()->set(
+            SteamTicketVerifier::class,
+            $this->steamVerifierWithResponse([
+                'response' => [
+                    'params' => [
+                        'result' => 'OK',
+                        'steamid' => '76561198000000001',
+                    ],
+                ],
+            ]),
+        );
+
+        $client->request(
+            'POST',
+            '/api/auth/steam',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['ticket' => 'deadbeef'], JSON_THROW_ON_ERROR),
+        );
+
+        self::assertResponseStatusCodeSame(503);
+        $payload = json_decode($client->getResponse()->getContent() ?: '', true);
+        self::assertSame('STEAM_UPSTREAM_UNAVAILABLE', $payload['error']['code'] ?? null);
+    }
+
+    public function testRejectsPublisherBannedSteamAccount(): void
+    {
+        $client = static::createClient();
+        static::getContainer()->set(
+            SteamTicketVerifier::class,
+            $this->steamVerifierWithResponse([
+                'response' => [
+                    'params' => [
+                        'result' => 'OK',
+                        'steamid' => '76561198000000001',
+                        'publisherbanned' => true,
+                    ],
+                ],
+            ]),
+        );
+
+        $client->request(
+            'POST',
+            '/api/auth/steam',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['ticket' => 'deadbeef'], JSON_THROW_ON_ERROR),
+        );
+
+        self::assertResponseStatusCodeSame(403);
+        $payload = json_decode($client->getResponse()->getContent() ?: '', true);
+        self::assertSame('STEAM_TICKET_INVALID', $payload['error']['code'] ?? null);
     }
 
     public function testRejectsSteamWebApiTicketAboveMaximumLength(): void
@@ -140,18 +246,24 @@ final class SteamAuthTest extends WebTestCase
 
     private function configuredSteamVerifier(): SteamTicketVerifier
     {
-        $response = new MockResponse(json_encode([
+        return $this->steamVerifierWithResponse([
             'response' => [
                 'params' => [
                     'result' => 'OK',
                     'steamid' => '76561198000000001',
+                    'publisherbanned' => false,
                 ],
             ],
-        ], JSON_THROW_ON_ERROR));
+        ]);
+    }
 
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function steamVerifierWithResponse(array $payload): SteamTicketVerifier
+    {
         return new SteamTicketVerifier(
-            new MockHttpClient($response),
-            new NullLogger(),
+            new MockHttpClient(new MockResponse(json_encode($payload, JSON_THROW_ON_ERROR))),
             'publisher-key',
             '4982260',
         );

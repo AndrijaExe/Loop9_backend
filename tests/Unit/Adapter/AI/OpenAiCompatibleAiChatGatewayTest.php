@@ -12,7 +12,11 @@ use App\Adapter\AI\AiProviderCatalog;
 use App\Adapter\AI\CostEstimator;
 use App\Adapter\AI\OpenAiCompatibleHttpClientInterface;
 use App\Adapter\AI\PromptFactory;
+use Monolog\Handler\TestHandler;
+use Monolog\Logger;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\RequestStack;
 
@@ -199,10 +203,50 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
         );
     }
 
-    public function testDoesNotCascadeAfterStructurallyInvalidProviderResponse(): void
+    public function testTriesExactlyOneFallbackAfterStructurallyInvalidHttp200Response(): void
     {
         $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
-        $http->expects(self::once())
+        $http->expects(self::exactly(2))
+            ->method('chatCompletion')
+            ->willReturnOnConsecutiveCalls(
+                [
+                    'statusCode' => 200,
+                    'data' => [],
+                    'latencyMs' => 8.0,
+                    'promptTokens' => 10,
+                    'completionTokens' => 0,
+                ],
+                [
+                    'statusCode' => 200,
+                    'data' => [],
+                    'latencyMs' => 9.0,
+                    'promptTokens' => 10,
+                    'completionTokens' => 5,
+                ],
+            );
+        $http->expects(self::exactly(2))
+            ->method('extractContent')
+            ->willReturnCallback(static function (): string {
+                static $attempt = 0;
+                if (++$attempt === 1) {
+                    throw new \RuntimeException('AI provider returned invalid response.');
+                }
+
+                return 'Recovered.[STATE]KINDNESS=0;SUSPICION=0';
+            });
+
+        $gateway = $this->makeGateway($http, $this->catalogWithFallback());
+
+        self::assertSame(
+            'Recovered.[STATE]KINDNESS=0;SUSPICION=0',
+            $gateway->ask('hello', new RuntimeContext(loopIndex: 1))->content(),
+        );
+    }
+
+    public function testMalformedHttp200RecoveryNeverAttemptsThirdProvider(): void
+    {
+        $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
+        $http->expects(self::exactly(2))
             ->method('chatCompletion')
             ->willReturn([
                 'statusCode' => 200,
@@ -211,16 +255,89 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
                 'promptTokens' => 10,
                 'completionTokens' => 0,
             ]);
-        $http->expects(self::once())
+        $http->expects(self::exactly(2))
             ->method('extractContent')
             ->willThrowException(new \RuntimeException('AI provider returned invalid response.'));
 
-        $gateway = $this->makeGateway($http, $this->catalogWithFallback());
+        $gateway = $this->makeGateway($http, $this->catalogWithTwoFallbacks());
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('invalid response');
 
         $gateway->ask('hello', new RuntimeContext(loopIndex: 1));
+    }
+
+    public function testFallsBackWhenTransportRejectsMalformedHttp200Envelope(): void
+    {
+        $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
+        $http->expects(self::exactly(2))
+            ->method('chatCompletion')
+            ->willReturnCallback(static function (): array {
+                static $attempt = 0;
+                if (++$attempt === 1) {
+                    throw new \RuntimeException('AI provider returned invalid response.');
+                }
+
+                return [
+                    'statusCode' => 200,
+                    'data' => [],
+                    'latencyMs' => 9.0,
+                    'promptTokens' => 10,
+                    'completionTokens' => 5,
+                ];
+            });
+        $http->expects(self::once())
+            ->method('extractContent')
+            ->willReturn('Recovered.[STATE]KINDNESS=0;SUSPICION=0');
+
+        $gateway = $this->makeGateway($http, $this->catalogWithFallback());
+
+        self::assertSame(
+            'Recovered.[STATE]KINDNESS=0;SUSPICION=0',
+            $gateway->ask('hello', new RuntimeContext(loopIndex: 1))->content(),
+        );
+    }
+
+    #[DataProvider('providerSpecificRequestErrors')]
+    public function testFallsBackAfterProviderSpecificRequestError(int $statusCode, string $code): void
+    {
+        $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
+        $http->expects(self::exactly(2))
+            ->method('chatCompletion')
+            ->willReturnOnConsecutiveCalls(
+                [
+                    'statusCode' => $statusCode,
+                    'data' => ['error' => ['code' => $code]],
+                    'latencyMs' => 8.0,
+                    'promptTokens' => null,
+                    'completionTokens' => null,
+                ],
+                [
+                    'statusCode' => 200,
+                    'data' => [],
+                    'latencyMs' => 10.0,
+                    'promptTokens' => 10,
+                    'completionTokens' => 5,
+                ],
+            );
+        $http->method('summarizeErrorPayload')->willReturn(['code' => $code]);
+        $http->method('extractContent')->willReturn('Fallback.[STATE]KINDNESS=0;SUSPICION=0');
+
+        $gateway = $this->makeGateway($http, $this->catalogWithFallback());
+
+        self::assertSame(
+            'Fallback.[STATE]KINDNESS=0;SUSPICION=0',
+            $gateway->ask('hello', new RuntimeContext(loopIndex: 1))->content(),
+        );
+    }
+
+    /**
+     * @return iterable<string, array{0: int, 1: string}>
+     */
+    public static function providerSpecificRequestErrors(): iterable
+    {
+        yield '400 invalid model' => [400, 'invalid_model'];
+        yield '422 model not found' => [422, 'model_not_found'];
     }
 
     public function testReturnsValidatedReplyFromPrimary(): void
@@ -251,9 +368,79 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
         self::assertStringContainsString('[STATE]', $message->content());
     }
 
+    public function testKeepsUnknownErrorAttemptCostNullable(): void
+    {
+        $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
+        $http->expects(self::once())->method('chatCompletion')->willReturn([
+            'statusCode' => 500,
+            'data' => [],
+            'latencyMs' => 8.0,
+            'promptTokens' => null,
+            'completionTokens' => null,
+        ]);
+        $http->expects(self::once())->method('summarizeErrorPayload')->willReturn([]);
+        $handler = new TestHandler();
+
+        try {
+            $this->makeGateway($http, $this->catalogPrimaryOnly(), new Logger('test', [$handler]))
+                ->ask('hello', new RuntimeContext(loopIndex: 1));
+            self::fail('Expected provider failure.');
+        } catch (\RuntimeException) {
+            $this->assertLogHasNullCost($handler, 'AI provider returned error status.');
+        }
+    }
+
+    public function testKeepsUnknownInvalidFormatAttemptCostNullable(): void
+    {
+        $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
+        $http->expects(self::once())->method('chatCompletion')->willReturn([
+            'statusCode' => 200,
+            'data' => [],
+            'latencyMs' => 8.0,
+            'promptTokens' => null,
+            'completionTokens' => null,
+        ]);
+        $http->expects(self::once())->method('extractContent')->willReturn(
+            'bad [STATE] duplicate[STATE]KINDNESS=0;SUSPICION=0',
+        );
+        $handler = new TestHandler();
+
+        try {
+            $this->makeGateway($http, $this->catalogPrimaryOnly(), new Logger('test', [$handler]))
+                ->ask('hello', new RuntimeContext(loopIndex: 1));
+            self::fail('Expected invalid reply format.');
+        } catch (\RuntimeException) {
+            $this->assertLogHasNullCost($handler, 'AI response format invalid.');
+        }
+    }
+
+    public function testKeepsUnknownMalformedSuccessAttemptCostNullable(): void
+    {
+        $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
+        $http->expects(self::once())->method('chatCompletion')->willReturn([
+            'statusCode' => 200,
+            'data' => [],
+            'latencyMs' => 8.0,
+            'promptTokens' => null,
+            'completionTokens' => null,
+        ]);
+        $http->expects(self::once())->method('extractContent')
+            ->willThrowException(new \RuntimeException('AI provider returned invalid response.'));
+        $handler = new TestHandler();
+
+        try {
+            $this->makeGateway($http, $this->catalogPrimaryOnly(), new Logger('test', [$handler]))
+                ->ask('hello', new RuntimeContext(loopIndex: 1));
+            self::fail('Expected malformed provider response.');
+        } catch (\RuntimeException) {
+            $this->assertLogHasNullCost($handler, 'AI provider returned malformed success response.');
+        }
+    }
+
     private function makeGateway(
         OpenAiCompatibleHttpClientInterface $http,
         AiProviderCatalog $catalog,
+        ?LoggerInterface $logger = null,
     ): OpenAiCompatibleAiChatGateway {
         $projectDir = dirname(__DIR__, 4);
 
@@ -264,9 +451,23 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
             httpClient: $http,
             replyFormatValidator: new AssistantReplyFormatValidator(),
             costEstimator: new CostEstimator(),
-            logger: new NullLogger(),
+            logger: $logger ?? new NullLogger(),
             requestStack: new RequestStack(),
         );
+    }
+
+    private function assertLogHasNullCost(TestHandler $handler, string $message): void
+    {
+        foreach ($handler->getRecords() as $record) {
+            if ($record->message === $message) {
+                self::assertArrayHasKey('estimatedCostUsd', $record->context);
+                self::assertNull($record->context['estimatedCostUsd']);
+
+                return;
+            }
+        }
+
+        self::fail(sprintf('Expected log message "%s".', $message));
     }
 
     private function catalogPrimaryOnly(): AiProviderCatalog

@@ -55,6 +55,8 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                 break;
             }
 
+            $response = null;
+
             try {
                 $response = $this->httpClient->chatCompletion(
                     $provider,
@@ -64,20 +66,28 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                 );
 
                 if ($response['statusCode'] !== 200) {
+                    $errorSummary = $this->httpClient->summarizeErrorPayload($response['data']);
                     $this->logger->warning('AI provider returned error status.', [
                         'requestId' => $this->requestId(),
                         'attempt' => $attempt,
                         'provider' => $provider['label'],
                         'model' => $provider['model'],
                         'statusCode' => $response['statusCode'],
-                        'error' => $this->httpClient->summarizeErrorPayload($response['data']),
+                        'error' => $errorSummary,
                         'latencyMs' => $response['latencyMs'],
+                        'promptTokens' => $response['promptTokens'],
+                        'completionTokens' => $response['completionTokens'],
+                        'estimatedCostUsd' => $this->costEstimator->estimateUsd(
+                            $provider['model'],
+                            $response['promptTokens'],
+                            $response['completionTokens'],
+                        ),
                     ]);
 
                     // Request-global 4xx errors should not burn another paid
                     // attempt. Provider-local auth/model/endpoint failures may
                     // still fall through to independently configured providers.
-                    if ($this->isRequestGlobalFailure($response['statusCode'])) {
+                    if ($this->isRequestGlobalFailure($response['statusCode'], $errorSummary)) {
                         throw new \RuntimeException(sprintf(
                             'AI provider "%s" rejected the request (HTTP %d).',
                             $provider['label'],
@@ -107,6 +117,12 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                         'contentLength' => mb_strlen($rawContent),
                         'completionTokens' => $response['completionTokens'],
                         'maxTokens' => $maxTokens,
+                        'latencyMs' => $response['latencyMs'],
+                        'estimatedCostUsd' => $this->costEstimator->estimateUsd(
+                            $provider['model'],
+                            $response['promptTokens'],
+                            $response['completionTokens'],
+                        ),
                         'willRetryOnce' => $canTryOneFallback,
                     ]);
 
@@ -143,12 +159,44 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
             } catch (\Throwable $exception) {
                 $lastException = $exception;
 
+                if ($this->isMalformedSuccessResponse($exception)) {
+                    $canTryOneFallback = $attempt < $lastAllowedAttempt;
+                    if ($canTryOneFallback) {
+                        $lastAllowedAttempt = $attempt + 1;
+                    }
+
+                    $this->logger->warning('AI provider returned malformed success response.', [
+                        'requestId' => $this->requestId(),
+                        'attempt' => $attempt,
+                        'provider' => $provider['label'],
+                        'model' => $provider['model'],
+                        'statusCode' => $response['statusCode'] ?? 200,
+                        'latencyMs' => $response['latencyMs'] ?? null,
+                        'promptTokens' => $response['promptTokens'] ?? null,
+                        'completionTokens' => $response['completionTokens'] ?? null,
+                        'estimatedCostUsd' => $response === null ? null : $this->costEstimator->estimateUsd(
+                            $provider['model'],
+                            $response['promptTokens'],
+                            $response['completionTokens'],
+                        ),
+                        'willRetryOnce' => $canTryOneFallback,
+                    ]);
+
+                    if ($canTryOneFallback) {
+                        continue;
+                    }
+                }
+
                 $this->logger->error('AI provider request failed.', [
                     'requestId' => $this->requestId(),
                     'attempt' => $attempt,
                     'provider' => $provider['label'],
                     'model' => $provider['model'],
                     'exceptionClass' => $exception::class,
+                    'statusCode' => $response['statusCode'] ?? null,
+                    'latencyMs' => $response['latencyMs'] ?? null,
+                    'promptTokens' => $response['promptTokens'] ?? null,
+                    'completionTokens' => $response['completionTokens'] ?? null,
                     'totalAiMs' => round((hrtime(true) - $startedAt) / 1_000_000, 2),
                 ]);
 
@@ -167,9 +215,39 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
         throw new \RuntimeException('AI provider returned an error.');
     }
 
-    private function isRequestGlobalFailure(int $statusCode): bool
+    /**
+     * @param array{type?: string, code?: string, param?: string} $errorSummary
+     */
+    private function isRequestGlobalFailure(int $statusCode, array $errorSummary): bool
     {
-        return in_array($statusCode, [400, 405, 413, 415, 422], true);
+        if (!in_array($statusCode, [400, 405, 413, 415, 422], true)) {
+            return false;
+        }
+
+        if (in_array($statusCode, [400, 422], true)
+            && $this->isProviderSpecificErrorCode($errorSummary['code'] ?? null)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function isProviderSpecificErrorCode(?string $code): bool
+    {
+        return $code !== null && in_array(strtolower($code), [
+            'deployment_not_found',
+            'engine_not_found',
+            'invalid_model',
+            'model_not_available',
+            'model_not_found',
+            'model_not_supported',
+            'unsupported_model',
+        ], true);
+    }
+
+    private function isMalformedSuccessResponse(\Throwable $exception): bool
+    {
+        return str_contains(strtolower($exception->getMessage()), 'invalid response');
     }
 
     private function shouldStopCascading(\Throwable $exception): bool

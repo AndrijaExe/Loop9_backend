@@ -14,6 +14,29 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class OpenAiContentSafetyGateway implements ContentSafetyGateway
 {
+    public const MAX_RESPONSE_BYTES = 65_536;
+
+    /**
+     * omni-moderation-latest's complete category schema. Requiring every
+     * category prevents a truncated or provider-incompatible response from
+     * being interpreted as safe.
+     */
+    private const REQUIRED_CATEGORIES = [
+        'harassment',
+        'harassment/threatening',
+        'hate',
+        'hate/threatening',
+        'illicit',
+        'illicit/violent',
+        'self-harm',
+        'self-harm/intent',
+        'self-harm/instructions',
+        'sexual',
+        'sexual/minors',
+        'violence',
+        'violence/graphic',
+    ];
+
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly LocalSafetyDetector $localDetector,
@@ -64,6 +87,9 @@ final class OpenAiContentSafetyGateway implements ContentSafetyGateway
                     'input' => $text,
                 ],
                 'timeout' => max(1, $this->timeoutSeconds),
+                'max_duration' => max(1, $this->timeoutSeconds),
+                'max_redirects' => 0,
+                'buffer' => false,
             ]);
 
             if ($response->getStatusCode() !== 200) {
@@ -72,9 +98,26 @@ final class OpenAiContentSafetyGateway implements ContentSafetyGateway
                 return ContentSafetyDecision::blocked('moderation_unavailable');
             }
 
-            $data = $response->toArray(false);
-            $result = $data['results'][0] ?? null;
-            if (!is_array($result) || !is_bool($result['flagged'] ?? null)) {
+            $body = '';
+            foreach ($this->httpClient->stream($response) as $chunk) {
+                $content = $chunk->getContent();
+                if (strlen($body) + strlen($content) > self::MAX_RESPONSE_BYTES) {
+                    $response->cancel();
+                    throw new \RuntimeException('Moderation response exceeds the allowed size.');
+                }
+
+                $body .= $content;
+            }
+
+            $data = json_decode($body, true, 32, JSON_THROW_ON_ERROR);
+            $result = is_array($data) ? ($data['results'][0] ?? null) : null;
+            if (!is_array($data)
+                || !isset($data['results'])
+                || !is_array($data['results'])
+                || count($data['results']) !== 1
+                || !is_array($result)
+                || !is_bool($result['flagged'] ?? null)
+                || !$this->hasCompleteCategorySchema($result['categories'] ?? null)) {
                 $this->logDecision($stage, 'unavailable', ['invalid_response'], $startedAt);
 
                 return ContentSafetyDecision::blocked('moderation_unavailable');
@@ -118,6 +161,29 @@ final class OpenAiContentSafetyGateway implements ContentSafetyGateway
         }
 
         return array_slice($flagged, 0, 16);
+    }
+
+    private function hasCompleteCategorySchema(mixed $rawCategories): bool
+    {
+        if (!is_array($rawCategories)) {
+            return false;
+        }
+
+        foreach (self::REQUIRED_CATEGORIES as $category) {
+            if (!array_key_exists($category, $rawCategories) || !is_bool($rawCategories[$category])) {
+                return false;
+            }
+        }
+
+        foreach ($rawCategories as $name => $value) {
+            if (!is_string($name)
+                || preg_match('/\A[a-z0-9_\/-]{1,64}\z/i', $name) !== 1
+                || !is_bool($value)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

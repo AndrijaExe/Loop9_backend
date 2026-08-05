@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Adapter\Auth;
 
-use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -19,7 +18,6 @@ final class SteamTicketVerifier
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
-        private readonly LoggerInterface $logger,
         #[Autowire(env: 'STEAM_WEB_API_KEY')]
         private readonly string $webApiKey,
         #[Autowire(env: 'STEAM_APP_ID')]
@@ -32,13 +30,12 @@ final class SteamTicketVerifier
         return $this->webApiKey !== '' && $this->appId !== '';
     }
 
-    /**
-     * Returns the SteamID64 when the ticket is valid, null otherwise.
-     */
-    public function verify(string $ticketHex): ?string
+    public function verify(string $ticketHex): SteamTicketVerificationResult
     {
         if (!$this->isConfigured()) {
-            return null;
+            throw new SteamVerificationUnavailableException(
+                SteamVerificationUnavailableException::REASON_NOT_CONFIGURED,
+            );
         }
 
         try {
@@ -55,41 +52,82 @@ final class SteamTicketVerifier
             ]);
 
             $statusCode = $response->getStatusCode();
-            if ($statusCode !== 200) {
-                $this->logger->error('Steam ticket verification upstream rejected request.', [
-                    'statusCode' => $statusCode,
-                ]);
-
-                return null;
-            }
-
-            $data = $response->toArray(false);
         } catch (\Throwable $e) {
-            $this->logger->error('Steam ticket verification request failed.', [
-                // Exception messages from HTTP clients can contain the complete
-                // request URL. Never log them because the URL carries the ticket.
-                'exceptionClass' => $e::class,
-            ]);
-
-            return null;
+            throw new SteamVerificationUnavailableException(
+                SteamVerificationUnavailableException::REASON_TRANSPORT,
+                previous: $e,
+            );
         }
 
-        $params = $data['response']['params'] ?? null;
+        if ($statusCode !== 200) {
+            throw new SteamVerificationUnavailableException(
+                SteamVerificationUnavailableException::REASON_UPSTREAM_STATUS,
+                upstreamStatusCode: $statusCode,
+            );
+        }
 
-        if (!is_array($params) || ($params['result'] ?? null) !== 'OK') {
-            $this->logger->info('Steam ticket rejected.', [
-                'response' => $data['response'] ?? null,
-            ]);
+        try {
+            $data = $response->toArray(false);
+        } catch (\Throwable $e) {
+            throw new SteamVerificationUnavailableException(
+                SteamVerificationUnavailableException::REASON_INVALID_RESPONSE,
+                upstreamStatusCode: $statusCode,
+                previous: $e,
+            );
+        }
 
-            return null;
+        $responseData = $data['response'] ?? null;
+        if (!is_array($responseData)) {
+            throw new SteamVerificationUnavailableException(
+                SteamVerificationUnavailableException::REASON_INVALID_RESPONSE,
+                upstreamStatusCode: $statusCode,
+            );
+        }
+
+        $error = $responseData['error'] ?? null;
+        if ($this->isRecognizedTicketRejection($error)) {
+            return SteamTicketVerificationResult::rejected();
+        }
+
+        $params = $responseData['params'] ?? null;
+        if (!is_array($params)
+            || ($params['result'] ?? null) !== 'OK'
+            || !array_key_exists('publisherbanned', $params)
+            || !is_bool($params['publisherbanned'])) {
+            throw new SteamVerificationUnavailableException(
+                SteamVerificationUnavailableException::REASON_INVALID_RESPONSE,
+                upstreamStatusCode: $statusCode,
+            );
+        }
+
+        if ($params['publisherbanned']) {
+            return SteamTicketVerificationResult::rejected();
         }
 
         $steamId = $params['steamid'] ?? null;
 
         if (!is_string($steamId) || !preg_match('/^\d{5,20}$/', $steamId)) {
-            return null;
+            throw new SteamVerificationUnavailableException(
+                SteamVerificationUnavailableException::REASON_INVALID_RESPONSE,
+                upstreamStatusCode: $statusCode,
+            );
         }
 
-        return $steamId;
+        return SteamTicketVerificationResult::accepted($steamId);
+    }
+
+    private function isRecognizedTicketRejection(mixed $error): bool
+    {
+        if (!is_array($error)) {
+            return false;
+        }
+
+        $errorCode = $error['errorcode'] ?? null;
+        $description = $error['errordesc'] ?? null;
+
+        return (is_int($errorCode)
+                || (is_string($errorCode) && preg_match('/\A\d{1,10}\z/', $errorCode) === 1))
+            && is_string($description)
+            && trim($description) !== '';
     }
 }
