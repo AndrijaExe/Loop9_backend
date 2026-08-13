@@ -6,6 +6,7 @@ namespace App\Adapter\Http;
 
 use App\Model\Telemetry\CountersUnavailable;
 use App\Model\Telemetry\EventCounters;
+use App\Model\Telemetry\PlayerPresence;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -24,6 +25,7 @@ final class MetricsController
 {
     public function __construct(
         private readonly EventCounters $counters,
+        private readonly PlayerPresence $presence,
         #[Autowire('%env(METRICS_TOKEN)%')]
         private readonly string $token,
     ) {
@@ -44,6 +46,7 @@ final class MetricsController
 
         try {
             $counters = $this->counters->totals();
+            $players = $this->presence->counts();
         } catch (CountersUnavailable) {
             return new JsonResponse([
                 'error' => ['message' => 'Counter storage unavailable.', 'code' => 'COUNTERS_UNAVAILABLE'],
@@ -51,7 +54,14 @@ final class MetricsController
         }
 
         return new JsonResponse([
+            // Two shapes, because they are read differently. A counter only means something as
+            // the difference between two readings; a gauge only means something as its latest.
             'counters' => (object) $counters,
+            'gauges' => (object) [
+                'players.online' => $players['online'],
+                'players.day' => $players['day'],
+            ],
+            'storage' => $this->counters->storage(),
             'at' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
         ]);
     }

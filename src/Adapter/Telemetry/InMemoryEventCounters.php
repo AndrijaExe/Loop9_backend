@@ -15,6 +15,11 @@ final class InMemoryEventCounters implements EventCounters
     /** @var array<string, int> */
     private array $totals = [];
 
+    public function storage(): string
+    {
+        return 'memory';
+    }
+
     public function increment(string $event, int $by = 1): void
     {
         $this->totals[$event] = ($this->totals[$event] ?? 0) + $by;

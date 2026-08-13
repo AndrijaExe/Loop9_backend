@@ -24,6 +24,11 @@ final class RedisEventCounters implements EventCounters
     ) {
     }
 
+    public function storage(): string
+    {
+        return 'redis';
+    }
+
     public function increment(string $event, int $by = 1): void
     {
         try {

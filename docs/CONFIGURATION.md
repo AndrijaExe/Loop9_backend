@@ -12,7 +12,7 @@ Defaults live in [`.env`](../.env). Production secrets belong in the host enviro
 | `APP_SECRET` | Symfony secret |
 | `DEFAULT_URI` | CLI URL generation |
 | `TRUSTED_PROXIES` | Required in prod. Render example: `127.0.0.1,REMOTE_ADDR` |
-| `REDIS_URL` | Required in prod for rate-limit storage and event counters |
+| `REDIS_URL` | Required in prod for rate-limit storage, event counters and player presence. Unset means counts live for one request, so `GET /metrics` answers with nothing in it |
 | `METRICS_TOKEN` | Shared secret for `GET /metrics`. Empty means the endpoint returns 404 |
 
 ### Auth

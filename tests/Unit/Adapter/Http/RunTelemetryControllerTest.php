@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Adapter\Http;
 
 use App\Adapter\Telemetry\InMemoryEventCounters;
+use App\Adapter\Telemetry\InMemoryPlayerPresence;
 use App\Adapter\Auth\SessionTokenIssuer;
 use App\Adapter\Http\GameTokenAuthenticator;
 use App\Adapter\Http\RunTelemetryController;
@@ -43,6 +44,7 @@ final class RunTelemetryControllerTest extends TestCase
             ], new InMemoryStorage()),
             $logger,
             new InMemoryEventCounters(),
+            new InMemoryPlayerPresence(),
         );
 
         $request = Request::create(

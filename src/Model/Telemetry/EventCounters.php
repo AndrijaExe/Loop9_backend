@@ -17,6 +17,14 @@ interface EventCounters
     public function increment(string $event, int $by = 1): void;
 
     /**
+     * Where the counts live: "redis" survives a restart, "memory" does not.
+     *
+     * Published with the numbers because a dashboard of zeros has two very different causes,
+     * and the reader cannot tell "nothing happened" from "nothing was kept" without this.
+     */
+    public function storage(): string;
+
+    /**
      * @return array<string, int>
      *
      * @throws CountersUnavailable

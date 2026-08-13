@@ -85,7 +85,16 @@ at the same place in the code, so a number and a log line never disagree.
 `EventCounters` is a port. The Redis adapter uses `HINCRBY`, since a cache pool read-modify-write
 would lose counts under concurrency, and a write failure is swallowed and logged: no player's
 message fails because a counter did not increment. Where there is no Redis the counts live for
-one request, which is all a single process can honestly claim.
+one request, which is all a single process can honestly claim — and the payload names its storage
+so a reader can tell an empty answer from a forgetful one.
+
+`PlayerPresence` is the second port, and the one number no probe can produce: a service answering
+`/healthz` with nobody in it looks exactly like one carrying a thousand players. It is a level
+rather than a total, so it is published as a gauge and never summed. The Redis adapter keeps a
+sorted set of hashed player marks scored by last-seen second — a set because one player sending
+four messages is one player, hashed because the count answers how many and never who. Marks are
+written on a login, a chat message and a finished run, which is as close to "playing" as this
+service can see, and marks older than a day are dropped when the set is read.
 
 ## Related docs
 

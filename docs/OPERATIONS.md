@@ -74,8 +74,26 @@ difference between two readings. Two consequences follow. A total that drops mea
 the key — a flush, an eviction, a new instance — not that the game un-happened. And a reading
 without a previous one to compare against says nothing about now; it is the lifetime figure.
 
-Without `METRICS_TOKEN` the route returns 404. Without Redis it returns 503 rather than zeros,
-because a zero and an unreachable counter mean opposite things.
+The same response carries gauges, which are levels rather than totals:
+
+```
+players.online  players.day
+```
+
+Presence is a sorted set (`loop9:presence`) of one opaque mark per player, scored by the second
+they were last seen, written on a login, a chat message and a finished run. A set, because the
+same player sending four messages is one player; hashed marks, because the count answers how
+many and never who. Marks older than a day are dropped when the set is read.
+
+Two levels rather than one because they answer different questions: `players.online` is the last
+five minutes, which is "is anybody in there right now", and `players.day` is 24 hours, which is
+"did anybody play today" on a game quiet enough that the first is usually zero.
+
+Without `METRICS_TOKEN` the route returns 404. With Redis configured but unreachable it returns
+503 rather than zeros, because a zero and an unreachable counter mean opposite things. **Without
+`REDIS_URL` at all it returns 200 with nothing in it**: counting falls back to the memory of one
+request, which cannot survive to be read. `storage` in the payload names which of the two is
+happening, so an empty board can be diagnosed without a shell.
 
 ## Incident runbook
 

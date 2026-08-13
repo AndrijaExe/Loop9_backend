@@ -31,18 +31,28 @@ Readiness. In production this validates config and Redis write access.
 
 ### `GET /metrics`
 
-Cumulative event counters for an external monitor. Requires `X-Metrics-Token`.
+Event counts and current levels for an external monitor. Requires `X-Metrics-Token`.
 
 ```json
-{ "counters": { "chat.messages": 1842, "ai.fallback": 3 }, "at": "2026-08-13T09:00:00+00:00" }
+{
+  "counters": { "chat.messages": 1842, "ai.fallback": 3 },
+  "gauges": { "players.online": 4, "players.day": 61 },
+  "storage": "redis",
+  "at": "2026-08-13T09:00:00+00:00"
+}
 ```
 
 - `404` when `METRICS_TOKEN` is unset — the endpoint is not published on this instance
 - `403` on a wrong or missing token
 - `503` when the counter store is unreachable
 
-Counters never reset, so an interval is the difference between two readings. See
-[OPERATIONS.md](OPERATIONS.md#event-counters).
+`counters` never reset, so an interval is the difference between two readings. `gauges` are true
+only at `at` and mean nothing added up: `players.online` counts distinct players active in the
+last five minutes, `players.day` distinct players in the last 24 hours.
+
+`storage` is `redis` or `memory`. Without `REDIS_URL` the counts live for the length of one
+request, so every reading comes back empty; the field says so rather than leaving a reader to
+conclude the game is dead. See [OPERATIONS.md](OPERATIONS.md#event-counters).
 
 Use this as the Render health check path.
 

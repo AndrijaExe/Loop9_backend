@@ -6,6 +6,7 @@ namespace App\Adapter\Http;
 
 use App\Model\Telemetry\Event;
 use App\Model\Telemetry\EventCounters;
+use App\Model\Telemetry\PlayerPresence;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -42,6 +43,7 @@ final class RunTelemetryController
         private readonly RateLimiterFactory $telemetryLimiterFactory,
         private readonly LoggerInterface $logger,
         private readonly EventCounters $counters,
+        private readonly PlayerPresence $presence,
     ) {
     }
 
@@ -52,7 +54,7 @@ final class RunTelemetryController
             return new JsonResponse(null, 204);
         }
 
-        $this->tokenAuthenticator->authenticate($request);
+        $auth = $this->tokenAuthenticator->authenticate($request);
 
         $ip = $request->getClientIp() ?? 'unknown';
         $rateLimit = $this->telemetryLimiterFactory->create(hash('sha256', 'telemetry|' . $ip))->consume(1);
@@ -74,6 +76,10 @@ final class RunTelemetryController
 
         $this->counters->increment(Event::RUN_ENDED);
         $this->counters->increment(Event::runEnding($payload['ending']));
+
+        if ($auth->playerId !== null) {
+            $this->presence->seen($auth->playerId);
+        }
 
         return new JsonResponse(null, 204);
     }

@@ -9,6 +9,7 @@ use App\Adapter\Auth\SteamTicketVerifier;
 use App\Adapter\Auth\SteamVerificationUnavailableException;
 use App\Model\Telemetry\Event;
 use App\Model\Telemetry\EventCounters;
+use App\Model\Telemetry\PlayerPresence;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -33,6 +34,7 @@ final class SteamAuthController
         private readonly RateLimiterFactory $authLimiterFactory,
         private readonly LoggerInterface $logger,
         private readonly EventCounters $counters,
+        private readonly PlayerPresence $presence,
     ) {
     }
 
@@ -142,6 +144,9 @@ final class SteamAuthController
         ]);
 
         $this->counters->increment(Event::AUTH_ISSUED);
+        // A login is the first sign of a player, and often the only one for a while: a run can
+        // go a long time without a chat message.
+        $this->presence->seen($playerId);
 
         return new JsonResponse([
             'token' => $issued['token'],

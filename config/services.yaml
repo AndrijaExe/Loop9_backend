@@ -9,11 +9,18 @@ services:
     App\:
         resource: '../src/'
         exclude:
-            # Built by the factory below, which decides whether Redis is available.
+            # Built by the factories below, which decide whether Redis is available.
             - '../src/Adapter/Telemetry/RedisEventCounters.php'
+            - '../src/Adapter/Telemetry/RedisPlayerPresence.php'
 
     App\Model\Telemetry\EventCounters:
         factory: ['App\Adapter\Telemetry\EventCountersFactory', 'create']
+        arguments:
+            $redisUrl: '%env(REDIS_URL)%'
+            $logger: '@monolog.logger.telemetry'
+
+    App\Model\Telemetry\PlayerPresence:
+        factory: ['App\Adapter\Telemetry\PlayerPresenceFactory', 'create']
         arguments:
             $redisUrl: '%env(REDIS_URL)%'
             $logger: '@monolog.logger.telemetry'

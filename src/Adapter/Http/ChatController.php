@@ -7,6 +7,7 @@ namespace App\Adapter\Http;
 use App\Application\ChatService;
 use App\Model\Telemetry\Event;
 use App\Model\Telemetry\EventCounters;
+use App\Model\Telemetry\PlayerPresence;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -21,6 +22,7 @@ final class ChatController
         private readonly ChatService $sendChatMessage,
         private readonly LoggerInterface $logger,
         private readonly EventCounters $counters,
+        private readonly PlayerPresence $presence,
     ) {
     }
 
@@ -55,6 +57,9 @@ final class ChatController
         // client-supplied player_id in that case.
         $quotaStartedAt = hrtime(true);
         $playerId = $auth->playerId ?? $this->rateLimiter->resolvePlayerId($mapped['payload'], $request);
+
+        // Marked before the quotas, because a player who ran out of allowance is still playing.
+        $this->presence->seen($playerId);
 
         if ($denied = $this->rateLimiter->enforceIpDailyQuota($auth->scope, $request)) {
             return $this->refuse($denied);
