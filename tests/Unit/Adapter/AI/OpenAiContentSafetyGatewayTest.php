@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Adapter\AI;
 
+use App\Adapter\Telemetry\InMemoryEventCounters;
 use App\Model\Chat\ContentSafetyGateway;
 use App\Model\Chat\LocalSafetyDetector;
 use App\Adapter\AI\OpenAiContentSafetyGateway;
@@ -141,6 +142,7 @@ final class OpenAiContentSafetyGatewayTest extends TestCase
             localDetector: new LocalSafetyDetector(),
             logger: new NullLogger(),
             requestStack: new RequestStack(),
+            counters: new InMemoryEventCounters(),
             url: 'https://api.openai.test/v1/moderations',
             apiKey: 'moderation-key',
             fallbackApiKey: '',

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Adapter\Http\EventSubscriber;
 
+use App\Model\Telemetry\Event;
+use App\Model\Telemetry\EventCounters;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -22,8 +24,10 @@ final class ApiExceptionSubscriber implements EventSubscriberInterface
         'Message cannot be empty.',
     ];
 
-    public function __construct(private readonly LoggerInterface $logger)
-    {
+    public function __construct(
+        private readonly LoggerInterface $logger,
+        private readonly EventCounters $counters,
+    ) {
     }
 
     public static function getSubscribedEvents(): array
@@ -62,6 +66,12 @@ final class ApiExceptionSubscriber implements EventSubscriberInterface
             'path' => $request->getPathInfo(),
             'exception' => $exception,
         ]);
+
+        // Only server faults. A client sending a malformed body says nothing about
+        // whether this service is healthy, and counting it would blur the signal.
+        if ($statusCode >= 500) {
+            $this->counters->increment(Event::API_ERRORS);
+        }
 
         $event->setResponse(new JsonResponse([
             'error' => [

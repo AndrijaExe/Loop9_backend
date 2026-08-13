@@ -19,6 +19,7 @@ services:
       # Direct Compose traffic must not trust client-supplied X-Forwarded-For.
       TRUSTED_PROXIES: ${DOCKER_TRUSTED_PROXIES:-127.0.0.1}
       REDIS_URL: ${DOCKER_REDIS_URL:-redis://redis:6379}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
       STEAM_WEB_API_KEY: ${STEAM_WEB_API_KEY:-}
       STEAM_APP_ID: ${STEAM_APP_ID:-}
       SESSION_TOKEN_SECRET: ${SESSION_TOKEN_SECRET:-}

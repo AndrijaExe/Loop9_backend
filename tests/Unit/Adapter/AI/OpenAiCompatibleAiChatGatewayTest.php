@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Adapter\AI;
 
+use App\Adapter\Telemetry\InMemoryEventCounters;
 use App\Model\Chat\ProviderRoutingPolicy;
 use App\Model\Chat\RuntimeContext;
 use App\Model\Chat\AssistantReplyFormatValidator;
@@ -453,6 +454,7 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
             costEstimator: new CostEstimator(),
             logger: $logger ?? new NullLogger(),
             requestStack: new RequestStack(),
+            counters: new InMemoryEventCounters(),
         );
     }
 

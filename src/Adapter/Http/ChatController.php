@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Adapter\Http;
 
 use App\Application\ChatService;
+use App\Model\Telemetry\Event;
+use App\Model\Telemetry\EventCounters;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -18,6 +20,7 @@ final class ChatController
         private readonly ChatRequestMapper $requestMapper,
         private readonly ChatService $sendChatMessage,
         private readonly LoggerInterface $logger,
+        private readonly EventCounters $counters,
     ) {
     }
 
@@ -38,7 +41,7 @@ final class ChatController
         // Cheap burst protection first — does not consume fair-use / cost quotas.
         $burstLimitStartedAt = hrtime(true);
         if ($denied = $this->rateLimiter->enforceIpLimit($auth->scope, $request)) {
-            return $denied;
+            return $this->refuse($denied);
         }
         $burstLimitMs = RequestMonitor::elapsedMs($burstLimitStartedAt);
 
@@ -54,21 +57,21 @@ final class ChatController
         $playerId = $auth->playerId ?? $this->rateLimiter->resolvePlayerId($mapped['payload'], $request);
 
         if ($denied = $this->rateLimiter->enforceIpDailyQuota($auth->scope, $request)) {
-            return $denied;
+            return $this->refuse($denied);
         }
 
         if ($denied = $this->rateLimiter->enforcePlayerDailyQuota($playerId)) {
-            return $denied;
+            return $this->refuse($denied);
         }
 
         if ($denied = $this->rateLimiter->enforcePlayerMonthlyQuota($playerId)) {
-            return $denied;
+            return $this->refuse($denied);
         }
 
         // Consume the shared cost kill-switch last so callers already denied
         // by a narrower quota cannot drain allowance for every player.
         if ($denied = $this->rateLimiter->enforceGlobalDailyQuota()) {
-            return $denied;
+            return $this->refuse($denied);
         }
         $quotaMs = RequestMonitor::elapsedMs($quotaStartedAt);
 
@@ -92,9 +95,20 @@ final class ChatController
             ],
         ]);
 
+        $this->counters->increment(Event::CHAT_MESSAGES);
+
         return new JsonResponse($response->toArray(), 200, [
             'X-Request-Id' => $requestId,
         ]);
     }
 
+    /**
+     * Every quota lands here so a refusal is counted once, whichever limit ran out.
+     */
+    private function refuse(JsonResponse $denied): JsonResponse
+    {
+        $this->counters->increment(Event::CHAT_DENIED);
+
+        return $denied;
+    }
 }

@@ -3,7 +3,7 @@
 ## Hosting topology
 
 - App host: Render (recommended always-on Starter or better before public launch)
-- Rate-limit storage: Redis (`REDIS_URL`)
+- Rate-limit storage and event counters: Redis (`REDIS_URL`)
 - AI providers: env-configured OpenAI-compatible HTTPS endpoints
 - Moderation: OpenAI Moderations API
 - Logs: structured JSON on stderr
@@ -54,6 +54,28 @@ Interpretation tips:
 - large gap vs Unreal `DurationMs` → DNS/TLS/proxy/cold start between client and backend
 
 Never expect chat bodies, tickets, or tokens in logs.
+
+### Event counters
+
+`GET /metrics` (header `X-Metrics-Token: $METRICS_TOKEN`) returns cumulative counts of the same
+events, so a watcher can see volume and failure rates without parsing the log stream:
+
+```
+chat.messages  chat.denied  api.errors  ai.fallback  ai.failed
+safety.blocked  safety.unavailable  auth.issued  auth.rejected
+run.ended  run.ended.<ending>
+```
+
+The endpoint is a read, not a push. Nothing in this service is scheduled and nothing holds the
+monitor's credentials; whoever wants a reading asks for one.
+
+Counters live in one Redis hash (`loop9:events`) and only ever go up, so an interval is the
+difference between two readings. Two consequences follow. A total that drops means Redis lost
+the key — a flush, an eviction, a new instance — not that the game un-happened. And a reading
+without a previous one to compare against says nothing about now; it is the lifetime figure.
+
+Without `METRICS_TOKEN` the route returns 404. Without Redis it returns 503 rather than zeros,
+because a zero and an unreachable counter mean opposite things.
 
 ## Incident runbook
 

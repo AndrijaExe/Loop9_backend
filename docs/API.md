@@ -29,6 +29,21 @@ Readiness. In production this validates config and Redis write access.
 - `200` `{ "status": "ready" }`
 - `503` `{ "status": "not_ready" }`
 
+### `GET /metrics`
+
+Cumulative event counters for an external monitor. Requires `X-Metrics-Token`.
+
+```json
+{ "counters": { "chat.messages": 1842, "ai.fallback": 3 }, "at": "2026-08-13T09:00:00+00:00" }
+```
+
+- `404` when `METRICS_TOKEN` is unset — the endpoint is not published on this instance
+- `403` on a wrong or missing token
+- `503` when the counter store is unreachable
+
+Counters never reset, so an interval is the difference between two readings. See
+[OPERATIONS.md](OPERATIONS.md#event-counters).
+
 Use this as the Render health check path.
 
 ### `GET /privacy`

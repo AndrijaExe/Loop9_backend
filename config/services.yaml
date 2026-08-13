@@ -8,6 +8,15 @@ services:
 
     App\:
         resource: '../src/'
+        exclude:
+            # Built by the factory below, which decides whether Redis is available.
+            - '../src/Adapter/Telemetry/RedisEventCounters.php'
+
+    App\Model\Telemetry\EventCounters:
+        factory: ['App\Adapter\Telemetry\EventCountersFactory', 'create']
+        arguments:
+            $redisUrl: '%env(REDIS_URL)%'
+            $logger: '@monolog.logger.telemetry'
 
     App\Model\Chat\AiChatGateway:
         alias: App\Adapter\AI\OpenAiCompatibleAiChatGateway

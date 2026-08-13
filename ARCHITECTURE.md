@@ -76,6 +76,16 @@ Chat order:
 - `X-Request-Id` correlation
 - Timing breakdowns for auth and chat
 - No logging of tickets, tokens, API keys, or chat message bodies
+- Cumulative event counters in Redis, published read-only at `GET /metrics`
+
+The counters exist because reading volume and failure rates out of a log stream means either a
+log aggregator or a person with `grep`. They count the events already considered worth logging,
+at the same place in the code, so a number and a log line never disagree.
+
+`EventCounters` is a port. The Redis adapter uses `HINCRBY`, since a cache pool read-modify-write
+would lose counts under concurrency, and a write failure is swallowed and logged: no player's
+message fails because a counter did not increment. Where there is no Redis the counts live for
+one request, which is all a single process can honestly claim.
 
 ## Related docs
 

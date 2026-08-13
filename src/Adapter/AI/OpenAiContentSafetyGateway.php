@@ -7,6 +7,8 @@ namespace App\Adapter\AI;
 use App\Model\Chat\ContentSafetyDecision;
 use App\Model\Chat\ContentSafetyGateway;
 use App\Model\Chat\LocalSafetyDetector;
+use App\Model\Telemetry\Event;
+use App\Model\Telemetry\EventCounters;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -42,6 +44,7 @@ final class OpenAiContentSafetyGateway implements ContentSafetyGateway
         private readonly LocalSafetyDetector $localDetector,
         private readonly LoggerInterface $logger,
         private readonly RequestStack $requestStack,
+        private readonly EventCounters $counters,
         #[Autowire(env: 'AI_MODERATION_URL')]
         private readonly string $url,
         #[Autowire(env: 'AI_MODERATION_API_KEY')]
@@ -203,6 +206,18 @@ final class OpenAiContentSafetyGateway implements ContentSafetyGateway
             'latencyMs' => $latencyMs,
             'provider' => 'openai',
         ]);
+
+        // Counting here rather than at each call site keeps the log and the number
+        // describing the same event, whichever branch produced it.
+        $counted = match ($verdict) {
+            'blocked' => Event::SAFETY_BLOCKED,
+            'unavailable' => Event::SAFETY_UNAVAILABLE,
+            default => null,
+        };
+
+        if ($counted !== null) {
+            $this->counters->increment($counted);
+        }
     }
 
     private function requestId(): string

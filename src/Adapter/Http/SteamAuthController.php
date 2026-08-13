@@ -7,6 +7,8 @@ namespace App\Adapter\Http;
 use App\Adapter\Auth\SessionTokenIssuer;
 use App\Adapter\Auth\SteamTicketVerifier;
 use App\Adapter\Auth\SteamVerificationUnavailableException;
+use App\Model\Telemetry\Event;
+use App\Model\Telemetry\EventCounters;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -30,6 +32,7 @@ final class SteamAuthController
         #[Autowire(service: 'limiter.auth_steam')]
         private readonly RateLimiterFactory $authLimiterFactory,
         private readonly LoggerInterface $logger,
+        private readonly EventCounters $counters,
     ) {
     }
 
@@ -106,6 +109,8 @@ final class SteamAuthController
                 ],
             ]);
 
+            $this->counters->increment(Event::AUTH_REJECTED);
+
             return new JsonResponse([
                 'error' => ['message' => 'Steam ticket rejected.', 'code' => 'STEAM_TICKET_INVALID'],
             ], 403, [
@@ -135,6 +140,8 @@ final class SteamAuthController
                 'total' => RequestMonitor::elapsedMs($startedAt),
             ],
         ]);
+
+        $this->counters->increment(Event::AUTH_ISSUED);
 
         return new JsonResponse([
             'token' => $issued['token'],

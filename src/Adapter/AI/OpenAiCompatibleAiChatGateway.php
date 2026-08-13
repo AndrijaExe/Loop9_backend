@@ -9,6 +9,8 @@ use App\Model\Chat\ProviderRoutingPolicy;
 use App\Model\Chat\AiChatGateway;
 use App\Model\Chat\RuntimeContext;
 use App\Model\Chat\AssistantReplyFormatValidator;
+use App\Model\Telemetry\Event;
+use App\Model\Telemetry\EventCounters;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 
@@ -26,6 +28,7 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
         private readonly CostEstimator $costEstimator,
         private readonly LoggerInterface $logger,
         private readonly RequestStack $requestStack,
+        private readonly EventCounters $counters,
     ) {
     }
 
@@ -155,6 +158,13 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                     'totalAiMs' => round((hrtime(true) - $startedAt) / 1_000_000, 2),
                 ]);
 
+                if ($attempt > 1) {
+                    // The player still got an answer, so nothing here is an error. It is
+                    // worth counting anyway: a primary provider quietly failing all day
+                    // costs money and latency without ever showing up as a failure.
+                    $this->counters->increment(Event::AI_FALLBACK);
+                }
+
                 return new Message('assistant', $validatedContent);
             } catch (\Throwable $exception) {
                 $lastException = $exception;
@@ -199,6 +209,8 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                     'completionTokens' => $response['completionTokens'] ?? null,
                     'totalAiMs' => round((hrtime(true) - $startedAt) / 1_000_000, 2),
                 ]);
+
+                $this->counters->increment(Event::AI_FAILED);
 
                 if ($this->shouldStopCascading($exception)) {
                     throw $exception instanceof \RuntimeException

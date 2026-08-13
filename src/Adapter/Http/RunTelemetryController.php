@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Adapter\Http;
 
+use App\Model\Telemetry\Event;
+use App\Model\Telemetry\EventCounters;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -39,6 +41,7 @@ final class RunTelemetryController
         #[Autowire(service: 'limiter.telemetry_ip')]
         private readonly RateLimiterFactory $telemetryLimiterFactory,
         private readonly LoggerInterface $logger,
+        private readonly EventCounters $counters,
     ) {
     }
 
@@ -68,6 +71,9 @@ final class RunTelemetryController
             'aiMessages' => $payload['ai_messages'],
             'build' => $payload['build'],
         ]);
+
+        $this->counters->increment(Event::RUN_ENDED);
+        $this->counters->increment(Event::runEnding($payload['ending']));
 
         return new JsonResponse(null, 204);
     }
