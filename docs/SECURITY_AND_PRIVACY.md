@@ -39,7 +39,7 @@ Global daily quota is the AI cost kill-switch.
 | Steam tickets / session tokens / API keys | Never logged |
 | Player ids in logs | Prefer hashed / derived identifiers |
 | Telemetry | Structured log only |
-| Player presence | Truncated hash of the player id in Redis, scored by last-seen time, dropped after 24h. Supports a count, not a lookup |
+| Player presence | Truncated hash of the player id in Redis, scored by last-seen time, dropped after 24h. Read only as a count; the mark names nobody by itself, though anyone holding both the set and a player id could test one against the other |
 | Application logs | Short retention on host (about 30 days typical on Render) |
 
 Live policy page: `GET /privacy` (`PrivacyController`). Use that URL in Steamworks Basic Info.
