@@ -24,7 +24,7 @@ final class OpenAiCompatibleHttpClient implements OpenAiCompatibleHttpClientInte
     /**
      * @param list<array{role: string, content: string}> $messages
      * @param array{label: string, url: string, apiKey: string, model: string, verifyTls: bool, tier?: string} $provider
-     * @return array{statusCode: int, data: array<string, mixed>, latencyMs: float, promptTokens: ?int, completionTokens: ?int}
+     * @return array{statusCode: int, data: array<string, mixed>, latencyMs: float, promptTokens: ?int, completionTokens: ?int, cachedTokens: ?int}
      */
     public function chatCompletion(array $provider, array $messages, int $maxTokens, float $timeoutSeconds = self::DEFAULT_TIMEOUT_SECONDS): array
     {
@@ -104,6 +104,7 @@ final class OpenAiCompatibleHttpClient implements OpenAiCompatibleHttpClientInte
             'latencyMs' => round($latencyMs, 2),
             'promptTokens' => $this->extractPromptTokens($data),
             'completionTokens' => $this->extractCompletionTokens($data),
+            'cachedTokens' => $this->extractCachedTokens($data),
         ];
     }
 
@@ -183,6 +184,37 @@ final class OpenAiCompatibleHttpClient implements OpenAiCompatibleHttpClientInte
         if (isset($data['usageMetadata']) && is_array($data['usageMetadata'])
             && isset($data['usageMetadata']['candidatesTokenCount']) && is_numeric($data['usageMetadata']['candidatesTokenCount'])) {
             return (int) $data['usageMetadata']['candidatesTokenCount'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function extractCachedTokens(array $data): ?int
+    {
+        $usage = $data['usage'] ?? null;
+        if (!is_array($usage)) {
+            return $this->extractGeminiCachedTokens($data);
+        }
+
+        $details = $usage['prompt_tokens_details'] ?? null;
+        if (is_array($details) && isset($details['cached_tokens']) && is_numeric($details['cached_tokens'])) {
+            return max(0, (int) $details['cached_tokens']);
+        }
+
+        return $this->extractGeminiCachedTokens($data);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function extractGeminiCachedTokens(array $data): ?int
+    {
+        $meta = $data['usageMetadata'] ?? null;
+        if (is_array($meta) && isset($meta['cachedContentTokenCount']) && is_numeric($meta['cachedContentTokenCount'])) {
+            return max(0, (int) $meta['cachedContentTokenCount']);
         }
 
         return null;

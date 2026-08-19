@@ -74,6 +74,7 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                     $provider,
                     $response['promptTokens'],
                     $response['completionTokens'],
+                    $response['cachedTokens'] ?? null,
                 );
 
                 if ($response['statusCode'] !== 200) {
@@ -88,11 +89,7 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                         'latencyMs' => $response['latencyMs'],
                         'promptTokens' => $response['promptTokens'],
                         'completionTokens' => $response['completionTokens'],
-                        'estimatedCostUsd' => $this->costEstimator->estimateUsd(
-                            $provider['model'],
-                            $response['promptTokens'],
-                            $response['completionTokens'],
-                        ),
+                        'estimatedCostUsd' => $this->estimateCost($provider, $response),
                     ]);
 
                     // Request-global 4xx errors should not burn another paid
@@ -129,11 +126,7 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                         'completionTokens' => $response['completionTokens'],
                         'maxTokens' => $maxTokens,
                         'latencyMs' => $response['latencyMs'],
-                        'estimatedCostUsd' => $this->costEstimator->estimateUsd(
-                            $provider['model'],
-                            $response['promptTokens'],
-                            $response['completionTokens'],
-                        ),
+                        'estimatedCostUsd' => $this->estimateCost($provider, $response),
                         'willRetryOnce' => $canTryOneFallback,
                     ]);
 
@@ -157,11 +150,7 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                     'latencyMs' => $response['latencyMs'],
                     'promptTokens' => $response['promptTokens'],
                     'completionTokens' => $response['completionTokens'],
-                    'estimatedCostUsd' => $this->costEstimator->estimateUsd(
-                        $provider['model'],
-                        $response['promptTokens'],
-                        $response['completionTokens']
-                    ),
+                    'estimatedCostUsd' => $this->estimateCost($provider, $response),
                     'formatValidated' => true,
                     'totalAiMs' => round((hrtime(true) - $startedAt) / 1_000_000, 2),
                 ]);
@@ -192,11 +181,7 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                         'latencyMs' => $response['latencyMs'] ?? null,
                         'promptTokens' => $response['promptTokens'] ?? null,
                         'completionTokens' => $response['completionTokens'] ?? null,
-                        'estimatedCostUsd' => $response === null ? null : $this->costEstimator->estimateUsd(
-                            $provider['model'],
-                            $response['promptTokens'],
-                            $response['completionTokens'],
-                        ),
+                        'estimatedCostUsd' => $this->estimateCost($provider, $response),
                         'willRetryOnce' => $canTryOneFallback,
                     ]);
 
@@ -281,11 +266,34 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
 
     /**
      * @param array{label: string, url: string, model: string} $provider
+     * @param ?array{promptTokens?: ?int, completionTokens?: ?int, cachedTokens?: ?int} $response
+     */
+    private function estimateCost(array $provider, ?array $response): ?float
+    {
+        if ($response === null) {
+            return null;
+        }
+
+        return $this->costEstimator->estimateUsd(
+            $provider['model'],
+            $response['promptTokens'] ?? null,
+            $response['completionTokens'] ?? null,
+            $response['cachedTokens'] ?? null,
+        );
+    }
+
+    /**
+     * @param array{label: string, url: string, model: string} $provider
      * @param ?int                                             $promptTokens
      * @param ?int                                             $completionTokens
+     * @param ?int                                             $cachedTokens
      */
-    private function recordUsage(array $provider, ?int $promptTokens, ?int $completionTokens): void
-    {
+    private function recordUsage(
+        array $provider,
+        ?int $promptTokens,
+        ?int $completionTokens,
+        ?int $cachedTokens = null,
+    ): void {
         $vendor = AiVendor::fromUrl($provider['url']);
 
         if ($promptTokens !== null && $promptTokens > 0) {
@@ -298,7 +306,12 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
             $this->counters->increment(Event::tokensOutFor($vendor), $completionTokens);
         }
 
-        $usd = $this->costEstimator->estimateUsd($provider['model'], $promptTokens, $completionTokens);
+        $usd = $this->costEstimator->estimateUsd(
+            $provider['model'],
+            $promptTokens,
+            $completionTokens,
+            $cachedTokens,
+        );
         if ($usd === null || $usd <= 0) {
             return;
         }

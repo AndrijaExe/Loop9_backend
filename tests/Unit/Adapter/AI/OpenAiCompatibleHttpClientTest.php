@@ -84,6 +84,9 @@ final class OpenAiCompatibleHttpClientTest extends TestCase
         );
 
         self::assertSame(200, $response['statusCode']);
+        self::assertSame(10, $response['promptTokens']);
+        self::assertSame(5, $response['completionTokens']);
+        self::assertSame(8, $response['cachedTokens']);
     }
 
     public function testGroqPayloadKeepsSamplingAndCompatibleTokenField(): void
@@ -174,6 +177,9 @@ final class OpenAiCompatibleHttpClientTest extends TestCase
             'usage' => [
                 'prompt_tokens' => 10,
                 'completion_tokens' => 5,
+                'prompt_tokens_details' => [
+                    'cached_tokens' => 8,
+                ],
             ],
         ], JSON_THROW_ON_ERROR), ['http_code' => 200]);
     }

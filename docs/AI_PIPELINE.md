@@ -62,7 +62,9 @@ Message content is never written to logs. Only decision metadata and latency are
 
 ## Cost logging
 
-`CostEstimator` estimates USD cost from model id + token usage for structured logs (`AI provider selected for response.`). Keep model ids aligned with configured providers when changing routing.
+`CostEstimator` estimates USD from the provider's `usage` and the public short-context list
+(OpenAI 5.6 after the 2026-07-30 cut). Cached prompt tokens are billed at the cached input
+rate when the provider reports them. Keep model ids aligned with configured providers.
 
 ## Prompt change process
 

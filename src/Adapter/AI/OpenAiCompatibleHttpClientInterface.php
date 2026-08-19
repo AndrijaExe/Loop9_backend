@@ -9,7 +9,7 @@ interface OpenAiCompatibleHttpClientInterface
     /**
      * @param list<array{role: string, content: string}> $messages
      * @param array{label: string, url: string, apiKey: string, model: string, verifyTls: bool, tier?: string} $provider
-     * @return array{statusCode: int, data: array<string, mixed>, latencyMs: float, promptTokens: ?int, completionTokens: ?int}
+     * @return array{statusCode: int, data: array<string, mixed>, latencyMs: float, promptTokens: ?int, completionTokens: ?int, cachedTokens: ?int}
      */
     public function chatCompletion(array $provider, array $messages, int $maxTokens, float $timeoutSeconds = OpenAiCompatibleHttpClient::DEFAULT_TIMEOUT_SECONDS): array;
 
