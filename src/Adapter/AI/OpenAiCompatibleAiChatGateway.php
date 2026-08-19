@@ -9,6 +9,7 @@ use App\Model\Chat\ProviderRoutingPolicy;
 use App\Model\Chat\AiChatGateway;
 use App\Model\Chat\RuntimeContext;
 use App\Model\Chat\AssistantReplyFormatValidator;
+use App\Model\Telemetry\AiVendor;
 use App\Model\Telemetry\Event;
 use App\Model\Telemetry\EventCounters;
 use Psr\Log\LoggerInterface;
@@ -70,7 +71,7 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
 
                 // Counted even when the reply is then thrown away: the provider billed it.
                 $this->recordUsage(
-                    $provider['model'],
+                    $provider,
                     $response['promptTokens'],
                     $response['completionTokens'],
                 );
@@ -279,20 +280,25 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
     }
 
     /**
-     * @param ?int $promptTokens     billed input, or null when the provider did not say
-     * @param ?int $completionTokens billed output, or null when the provider did not say
+     * @param array{label: string, url: string, model: string} $provider
+     * @param ?int                                             $promptTokens
+     * @param ?int                                             $completionTokens
      */
-    private function recordUsage(string $model, ?int $promptTokens, ?int $completionTokens): void
+    private function recordUsage(array $provider, ?int $promptTokens, ?int $completionTokens): void
     {
+        $vendor = AiVendor::fromUrl($provider['url']);
+
         if ($promptTokens !== null && $promptTokens > 0) {
             $this->counters->increment(Event::AI_TOKENS_IN, $promptTokens);
+            $this->counters->increment(Event::tokensInFor($vendor), $promptTokens);
         }
 
         if ($completionTokens !== null && $completionTokens > 0) {
             $this->counters->increment(Event::AI_TOKENS_OUT, $completionTokens);
+            $this->counters->increment(Event::tokensOutFor($vendor), $completionTokens);
         }
 
-        $usd = $this->costEstimator->estimateUsd($model, $promptTokens, $completionTokens);
+        $usd = $this->costEstimator->estimateUsd($provider['model'], $promptTokens, $completionTokens);
         if ($usd === null || $usd <= 0) {
             return;
         }
@@ -300,6 +306,7 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
         $micros = (int) round($usd * 1_000_000);
         if ($micros > 0) {
             $this->counters->increment(Event::AI_COST_MICROS, $micros);
+            $this->counters->increment(Event::costMicrosFor($vendor), $micros);
         }
     }
 

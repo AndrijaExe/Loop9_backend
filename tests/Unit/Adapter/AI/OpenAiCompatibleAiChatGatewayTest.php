@@ -57,6 +57,8 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
         // would understate spend by exactly the failures that cost the most.
         self::assertSame(20, $counters->totals()['ai.tokens.in'] ?? 0);
         self::assertSame(13, $counters->totals()['ai.tokens.out'] ?? 0);
+        self::assertSame(20, $counters->totals()['ai.tokens.in.example'] ?? 0);
+        self::assertSame(13, $counters->totals()['ai.tokens.out.example'] ?? 0);
     }
 
     public function testKnownModelRatesBecomeADollarFigureTheMonitorCanAddUp(): void
@@ -77,6 +79,28 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
 
         // gemini-2.0-flash: $0.10 / $0.40 per million → 140 millionths of a dollar.
         self::assertSame(140, $counters->totals()['ai.cost.micros'] ?? 0);
+        self::assertSame(140, $counters->totals()['ai.cost.micros.example'] ?? 0);
+    }
+
+    public function testSpendIsAttributedToTheHostThatWasCalled(): void
+    {
+        $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
+        $http->expects(self::once())->method('chatCompletion')->willReturn([
+            'statusCode' => 200,
+            'data' => [],
+            'latencyMs' => 8.0,
+            'promptTokens' => 1_000,
+            'completionTokens' => 100,
+        ]);
+        $http->method('extractContent')->willReturn('Fine.[STATE]KINDNESS=0;SUSPICION=0');
+
+        $counters = new InMemoryEventCounters();
+        $this->makeGateway($http, $this->catalogOpenAiPrimary(), counters: $counters)
+            ->ask('hello', new RuntimeContext(loopIndex: 1));
+
+        self::assertSame(1_000, $counters->totals()['ai.tokens.in.openai'] ?? 0);
+        self::assertSame(100, $counters->totals()['ai.tokens.out.openai'] ?? 0);
+        self::assertArrayNotHasKey('ai.tokens.in.example', $counters->totals());
     }
 
     public function testAReplyWithoutUsageDoesNotInventTokens(): void
@@ -546,6 +570,27 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
         }
 
         self::fail(sprintf('Expected log message "%s".', $message));
+    }
+
+    private function catalogOpenAiPrimary(): AiProviderCatalog
+    {
+        return new AiProviderCatalog(
+            appEnv: 'test',
+            primaryUrl: 'https://api.openai.com/v1/chat/completions',
+            primaryApiKey: 'key',
+            primaryModel: 'gpt-5.4-mini',
+            primaryTlsVerify: 'true',
+            fallbackEnabled: 'false',
+            fallbackUrl: '',
+            fallbackApiKey: '',
+            fallbackModel: '',
+            fallbackTlsVerify: 'true',
+            fallback2Enabled: 'false',
+            fallback2Url: '',
+            fallback2ApiKey: '',
+            fallback2Model: '',
+            fallback2TlsVerify: 'true',
+        );
     }
 
     private function catalogPricedPrimary(): AiProviderCatalog

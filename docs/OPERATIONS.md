@@ -63,9 +63,13 @@ events, so a watcher can see volume and failure rates without parsing the log st
 ```
 chat.messages  chat.denied  api.errors  ai.fallback  ai.failed
 ai.tokens.in  ai.tokens.out  ai.cost.micros
+ai.tokens.in.<vendor>  ai.tokens.out.<vendor>  ai.cost.micros.<vendor>
 safety.blocked  safety.unavailable  auth.issued  auth.rejected
 run.ended  run.ended.<ending>
 ```
+
+`<vendor>` is the billed host (`openai`, `gemini`, `groq`, …), taken from the URL we called.
+`primary` and `fallback1` are our labels and never appear here.
 
 The endpoint is a read, not a push. Nothing in this service is scheduled and nothing holds the
 monitor's credentials; whoever wants a reading asks for one.

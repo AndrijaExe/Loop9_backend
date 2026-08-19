@@ -37,6 +37,21 @@ final class Event
         return self::RUN_ENDED.'.'.$ending;
     }
 
+    public static function tokensInFor(string $vendor): string
+    {
+        return self::AI_TOKENS_IN.'.'.$vendor;
+    }
+
+    public static function tokensOutFor(string $vendor): string
+    {
+        return self::AI_TOKENS_OUT.'.'.$vendor;
+    }
+
+    public static function costMicrosFor(string $vendor): string
+    {
+        return self::AI_COST_MICROS.'.'.$vendor;
+    }
+
     private function __construct()
     {
     }

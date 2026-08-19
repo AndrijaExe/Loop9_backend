@@ -35,7 +35,7 @@ Event counts and current levels for an external monitor. Requires `X-Metrics-Tok
 
 ```json
 {
-  "counters": { "chat.messages": 1842, "ai.fallback": 3, "ai.tokens.in": 184200, "ai.tokens.out": 92100, "ai.cost.micros": 140 },
+  "counters": { "chat.messages": 1842, "ai.fallback": 3, "ai.tokens.in": 184200, "ai.tokens.out": 92100, "ai.cost.micros": 140, "ai.tokens.in.openai": 184200, "ai.tokens.out.openai": 92100, "ai.cost.micros.openai": 140 },
   "gauges": { "players.online": 4, "players.day": 61 },
   "storage": "redis",
   "at": "2026-08-13T09:00:00+00:00"
@@ -45,6 +45,10 @@ Event counts and current levels for an external monitor. Requires `X-Metrics-Tok
 - `404` when `METRICS_TOKEN` is unset — the endpoint is not published on this instance
 - `403` on a wrong or missing token
 - `503` when the counter store is unreachable
+
+Token and cost totals are also published per billed host (`ai.tokens.in.openai`, …) so a monitor
+can split spend without holding a provider key. The host is taken from the URL we called, not
+from our env labels (`primary` / `fallback1`).
 
 `counters` never reset, so an interval is the difference between two readings. `gauges` are true
 only at `at` and mean nothing added up: `players.online` counts distinct players active in the
