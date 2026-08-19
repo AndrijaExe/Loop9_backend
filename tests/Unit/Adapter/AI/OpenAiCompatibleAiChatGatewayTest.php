@@ -46,7 +46,7 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
             );
         $http->method('extractContent')->willReturnOnConsecutiveCalls(
             'bad [STATE] duplicate[STATE]KINDNESS=0;SUSPICION=0',
-            'Recovered.[STATE]KINDNESS=0;SUSPICION=0',
+            'Recovered.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0',
         );
 
         $counters = new InMemoryEventCounters();
@@ -71,7 +71,7 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
             'promptTokens' => 1_000,
             'completionTokens' => 100,
         ]);
-        $http->method('extractContent')->willReturn('Fine.[STATE]KINDNESS=0;SUSPICION=0');
+        $http->method('extractContent')->willReturn('Fine.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0');
 
         $counters = new InMemoryEventCounters();
         $this->makeGateway($http, $this->catalogPricedPrimary(), counters: $counters)
@@ -92,7 +92,7 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
             'promptTokens' => 1_000,
             'completionTokens' => 100,
         ]);
-        $http->method('extractContent')->willReturn('Fine.[STATE]KINDNESS=0;SUSPICION=0');
+        $http->method('extractContent')->willReturn('Fine.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0');
 
         $counters = new InMemoryEventCounters();
         $this->makeGateway($http, $this->catalogOpenAiPrimary(), counters: $counters)
@@ -113,7 +113,7 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
             'promptTokens' => null,
             'completionTokens' => null,
         ]);
-        $http->method('extractContent')->willReturn('Fine.[STATE]KINDNESS=0;SUSPICION=0');
+        $http->method('extractContent')->willReturn('Fine.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0');
 
         $counters = new InMemoryEventCounters();
         $this->makeGateway($http, $this->catalogPrimaryOnly(), counters: $counters)
@@ -145,14 +145,14 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
             );
         $http->method('extractContent')->willReturnOnConsecutiveCalls(
             'bad [STATE] duplicate[STATE]KINDNESS=0;SUSPICION=0',
-            'Recovered.[STATE]KINDNESS=0;SUSPICION=0',
+            'Recovered.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0',
         );
         $http->expects(self::never())->method('summarizeErrorPayload');
 
         $gateway = $this->makeGateway($http, $this->catalogWithFallback());
 
         self::assertSame(
-            'Recovered.[STATE]KINDNESS=0;SUSPICION=0',
+            'Recovered.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0',
             $gateway->ask('hello', new RuntimeContext(loopIndex: 1))->content(),
         );
     }
@@ -261,12 +261,12 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
                 ],
             );
         $http->method('summarizeErrorPayload')->willReturn(['code' => 'invalid_api_key']);
-        $http->method('extractContent')->willReturn('Fallback.[STATE]KINDNESS=0;SUSPICION=0');
+        $http->method('extractContent')->willReturn('Fallback.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0');
 
         $gateway = $this->makeGateway($http, $this->catalogWithFallback());
 
         self::assertSame(
-            'Fallback.[STATE]KINDNESS=0;SUSPICION=0',
+            'Fallback.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0',
             $gateway->ask('hello', new RuntimeContext(loopIndex: 1))->content(),
         );
     }
@@ -293,12 +293,12 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
                 ],
             );
         $http->method('summarizeErrorPayload')->willReturn([]);
-        $http->method('extractContent')->willReturn('Fallback.[STATE]KINDNESS=0;SUSPICION=0');
+        $http->method('extractContent')->willReturn('Fallback.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0');
 
         $gateway = $this->makeGateway($http, $this->catalogWithFallback());
 
         self::assertSame(
-            'Fallback.[STATE]KINDNESS=0;SUSPICION=0',
+            'Fallback.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0',
             $gateway->ask('hello', new RuntimeContext(loopIndex: 1))->content(),
         );
     }
@@ -332,13 +332,13 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
                     throw new \RuntimeException('AI provider returned invalid response.');
                 }
 
-                return 'Recovered.[STATE]KINDNESS=0;SUSPICION=0';
+                return 'Recovered.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0';
             });
 
         $gateway = $this->makeGateway($http, $this->catalogWithFallback());
 
         self::assertSame(
-            'Recovered.[STATE]KINDNESS=0;SUSPICION=0',
+            'Recovered.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0',
             $gateway->ask('hello', new RuntimeContext(loopIndex: 1))->content(),
         );
     }
@@ -388,12 +388,12 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
             });
         $http->expects(self::once())
             ->method('extractContent')
-            ->willReturn('Recovered.[STATE]KINDNESS=0;SUSPICION=0');
+            ->willReturn('Recovered.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0');
 
         $gateway = $this->makeGateway($http, $this->catalogWithFallback());
 
         self::assertSame(
-            'Recovered.[STATE]KINDNESS=0;SUSPICION=0',
+            'Recovered.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0',
             $gateway->ask('hello', new RuntimeContext(loopIndex: 1))->content(),
         );
     }
@@ -421,12 +421,12 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
                 ],
             );
         $http->method('summarizeErrorPayload')->willReturn(['code' => $code]);
-        $http->method('extractContent')->willReturn('Fallback.[STATE]KINDNESS=0;SUSPICION=0');
+        $http->method('extractContent')->willReturn('Fallback.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0');
 
         $gateway = $this->makeGateway($http, $this->catalogWithFallback());
 
         self::assertSame(
-            'Fallback.[STATE]KINDNESS=0;SUSPICION=0',
+            'Fallback.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0',
             $gateway->ask('hello', new RuntimeContext(loopIndex: 1))->content(),
         );
     }
@@ -458,7 +458,7 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
                 'promptTokens' => 100,
                 'completionTokens' => 40,
             ]);
-        $http->method('extractContent')->willReturn('Hello.[STATE]KINDNESS=0;SUSPICION=0');
+        $http->method('extractContent')->willReturn('Hello.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0');
 
         $gateway = $this->makeGateway($http, $this->catalogPrimaryOnly());
 

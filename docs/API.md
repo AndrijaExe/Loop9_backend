@@ -137,7 +137,7 @@ Response `200`:
 ```json
 {
   "role": "assistant",
-  "message": "Check the hallway light, then take the lit elevator.[STATE]KINDNESS=0;SUSPICION=0",
+  "message": "Check the hallway light, then take the lit elevator.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0",
   "createdAt": "2026-04-23T14:21:17+00:00"
 }
 ```

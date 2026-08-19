@@ -66,7 +66,7 @@ final class ChatServiceTest extends TestCase
         );
 
         self::assertSame(
-            'Leave that alone—watch the floor and tell me what changed.[STATE]KINDNESS=0;SUSPICION=0',
+            'Leave that alone—watch the floor and tell me what changed.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0',
             $response->toArray()['message']
         );
     }
@@ -91,7 +91,7 @@ final class ChatServiceTest extends TestCase
         );
 
         self::assertSame(
-            'Pusti to sada—gledaj sprat i reci mi šta se promenilo.[STATE]KINDNESS=0;SUSPICION=0',
+            'Pusti to sada—gledaj sprat i reci mi šta se promenilo.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0',
             $response->toArray()['message']
         );
     }

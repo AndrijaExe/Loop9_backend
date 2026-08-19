@@ -6,7 +6,7 @@ namespace App\Model\Chat;
 
 /**
  * Validates the mandatory one-line reply format expected by the Unreal client:
- * {reply_text}[STATE]KINDNESS=-1|0|1;SUSPICION=-1|0|1
+ * {reply_text}[STATE]KINDNESS=-1|0|1;SUSPICION=-1|0|1;DEPENDENCY=-1|0|1
  */
 final class AssistantReplyFormatValidator
 {
@@ -44,8 +44,9 @@ final class AssistantReplyFormatValidator
         ) === 1) {
             $kindness = $this->extractStateDelta($matches['state'], 'KINDNESS');
             $suspicion = $this->extractStateDelta($matches['state'], 'SUSPICION');
-            if ($kindness !== null && $suspicion !== null) {
-                return $this->canonicalReply($matches['reply'], $kindness, $suspicion);
+            $dependency = $this->extractOptionalStateDelta($matches['state'], 'DEPENDENCY');
+            if ($kindness !== null && $suspicion !== null && $dependency !== null) {
+                return $this->canonicalReply($matches['reply'], $kindness, $suspicion, $dependency);
             }
 
             return null;
@@ -55,7 +56,7 @@ final class AssistantReplyFormatValidator
             return null;
         }
 
-        return $this->canonicalReply($normalized, 0, 0);
+        return $this->canonicalReply($normalized, 0, 0, 0);
     }
 
     private function normalizeJsonReply(string $content): ?string
@@ -74,7 +75,7 @@ final class AssistantReplyFormatValidator
         if (count($data) !== count($decoded)) {
             return null;
         }
-        $allowedKeys = ['reply_text', 'reply', 'message', 'content', 'state', 'kindness', 'suspicion'];
+        $allowedKeys = ['reply_text', 'reply', 'message', 'content', 'state', 'kindness', 'suspicion', 'dependency'];
         if (array_diff(array_keys($data), $allowedKeys) !== []) {
             return null;
         }
@@ -96,19 +97,21 @@ final class AssistantReplyFormatValidator
         if (isset($data['state'])
             && (!is_array($data['state'])
                 || count($state) !== count($data['state'])
-                || array_diff(array_keys($state), ['kindness', 'suspicion']) !== [])) {
+                || array_diff(array_keys($state), ['kindness', 'suspicion', 'dependency']) !== [])) {
             return null;
         }
 
         $kindnessRaw = $data['kindness'] ?? $state['kindness'] ?? 0;
         $suspicionRaw = $data['suspicion'] ?? $state['suspicion'] ?? 0;
+        $dependencyRaw = $data['dependency'] ?? $state['dependency'] ?? 0;
         $kindness = $this->normalizeDelta($kindnessRaw);
         $suspicion = $this->normalizeDelta($suspicionRaw);
-        if ($kindness === null || $suspicion === null) {
+        $dependency = $this->normalizeDelta($dependencyRaw);
+        if ($kindness === null || $suspicion === null || $dependency === null) {
             return null;
         }
 
-        return $this->canonicalReply($reply, $kindness, $suspicion);
+        return $this->canonicalReply($reply, $kindness, $suspicion, $dependency);
     }
 
     private function isValidJson(string $content): bool
@@ -139,6 +142,18 @@ final class AssistantReplyFormatValidator
         return (int) $matches[1];
     }
 
+    private function extractOptionalStateDelta(string $state, string $label): ?int
+    {
+        if (!preg_match(
+            '/(?:\A|[\s,;|])' . preg_quote($label, '/') . '\s*[:=]\s*(-1|0|1)(?=\s*(?:[,;|]|\z))/ui',
+            $state,
+        )) {
+            return 0;
+        }
+
+        return $this->extractStateDelta($state, $label);
+    }
+
     private function normalizeDelta(mixed $value): ?int
     {
         if (!is_int($value) && !(is_string($value) && preg_match('/\A-?[0-9]\z/', $value) === 1)) {
@@ -155,7 +170,7 @@ final class AssistantReplyFormatValidator
         if (!$this->isSafePlayerReply($content)
             || preg_match('/[\r\n]/u', $content) === 1
             || preg_match('/[{}\[\]<>`]/u', $content) === 1
-            || preg_match('/\b(?:STATE|KINDNESS|SUSPICION)\b/ui', $content) === 1
+            || preg_match('/\b(?:STATE|KINDNESS|SUSPICION|DEPENDENCY)\b/ui', $content) === 1
             || preg_match('/\A\s*(?:[-*#>]|\d+[.)])\s+/u', $content) === 1) {
             return false;
         }
@@ -163,7 +178,7 @@ final class AssistantReplyFormatValidator
         return true;
     }
 
-    private function canonicalReply(string $reply, int $kindness, int $suspicion): ?string
+    private function canonicalReply(string $reply, int $kindness, int $suspicion, int $dependency = 0): ?string
     {
         $reply = preg_replace('/<\/?reply_text>/ui', '', $reply);
         $reply = preg_replace('/\s+/u', ' ', is_string($reply) ? $reply : '');
@@ -173,10 +188,11 @@ final class AssistantReplyFormatValidator
         }
 
         return sprintf(
-            '%s[STATE]KINDNESS=%d;SUSPICION=%d',
+            '%s[STATE]KINDNESS=%d;SUSPICION=%d;DEPENDENCY=%d',
             $reply,
             $kindness,
             $suspicion,
+            $dependency,
         );
     }
 

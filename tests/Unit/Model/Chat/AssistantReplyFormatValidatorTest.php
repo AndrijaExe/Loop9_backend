@@ -19,7 +19,7 @@ final class AssistantReplyFormatValidatorTest extends TestCase
 
     public function testAcceptsValidOneLineReply(): void
     {
-        $input = 'Take the dark elevator.[STATE]KINDNESS=1;SUSPICION=0';
+        $input = 'Take the dark elevator.[STATE]KINDNESS=1;SUSPICION=0;DEPENDENCY=0';
 
         self::assertSame($input, $this->validator->normalizeAndValidate($input));
     }
@@ -29,7 +29,7 @@ final class AssistantReplyFormatValidatorTest extends TestCase
         $input = '<reply_text>Go lit.[STATE]KINDNESS=-1;SUSPICION=1</reply_text>';
 
         self::assertSame(
-            'Go lit.[STATE]KINDNESS=-1;SUSPICION=1',
+            'Go lit.[STATE]KINDNESS=-1;SUSPICION=1;DEPENDENCY=0',
             $this->validator->normalizeAndValidate($input)
         );
     }
@@ -39,7 +39,7 @@ final class AssistantReplyFormatValidatorTest extends TestCase
         $input = "```text\nAnswer from Dragojlo.\n[STATE] KINDNESS = 0; SUSPICION = -1\n```";
 
         self::assertSame(
-            'Answer from Dragojlo.[STATE]KINDNESS=0;SUSPICION=-1',
+            'Answer from Dragojlo.[STATE]KINDNESS=0;SUSPICION=-1;DEPENDENCY=0',
             $this->validator->normalizeAndValidate($input),
         );
     }
@@ -47,7 +47,7 @@ final class AssistantReplyFormatValidatorTest extends TestCase
     public function testCanonicalizesAlternateStateLabels(): void
     {
         self::assertSame(
-            'Keep moving.[STATE]KINDNESS=1;SUSPICION=-1',
+            'Keep moving.[STATE]KINDNESS=1;SUSPICION=-1;DEPENDENCY=0',
             $this->validator->normalizeAndValidate(
                 'Keep moving. **STATE:** SUSPICION: -1 | KINDNESS: 1'
             ),
@@ -57,7 +57,7 @@ final class AssistantReplyFormatValidatorTest extends TestCase
     public function testCanonicalizesJsonReply(): void
     {
         self::assertSame(
-            'Use the lit elevator.[STATE]KINDNESS=-1;SUSPICION=1',
+            'Use the lit elevator.[STATE]KINDNESS=-1;SUSPICION=1;DEPENDENCY=0',
             $this->validator->normalizeAndValidate(json_encode([
                 'reply_text' => 'Use the lit elevator.',
                 'state' => ['kindness' => -1, 'suspicion' => 1],
@@ -65,10 +65,20 @@ final class AssistantReplyFormatValidatorTest extends TestCase
         );
     }
 
+    public function testPreservesDependencyDelta(): void
+    {
+        self::assertSame(
+            'You choose.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=1',
+            $this->validator->normalizeAndValidate(
+                'You choose.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=1'
+            ),
+        );
+    }
+
     public function testUsesNeutralStateWhenTrailerIsMissing(): void
     {
         self::assertSame(
-            'Just text[STATE]KINDNESS=0;SUSPICION=0',
+            'Just text[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0',
             $this->validator->normalizeAndValidate('Just text'),
         );
     }
@@ -85,7 +95,7 @@ final class AssistantReplyFormatValidatorTest extends TestCase
         $reply = str_repeat('ž', AssistantReplyFormatValidator::MAX_REPLY_CHARACTERS);
 
         self::assertSame(
-            $reply . '[STATE]KINDNESS=0;SUSPICION=0',
+            $reply . '[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0',
             $this->validator->normalizeAndValidate($reply),
         );
     }
@@ -95,7 +105,7 @@ final class AssistantReplyFormatValidatorTest extends TestCase
         $reply = str_repeat('ž', AssistantReplyFormatValidator::MAX_REPLY_CHARACTERS + 1);
 
         self::assertNull($this->validator->normalizeAndValidate(
-            $reply . '[STATE]KINDNESS=0;SUSPICION=0'
+            $reply . '[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0'
         ));
     }
 

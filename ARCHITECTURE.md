@@ -47,7 +47,7 @@ flowchart TB
 1. Local + OpenAI moderation on input (fail-closed)
 2. Prompt assembly (`PromptFactory` + compact/full system prompts)
 3. Provider cascade (`AiChatGateway`, 45s total deadline)
-4. Assistant reply format validation (`[STATE]KINDNESS=...;SUSPICION=...`)
+4. Assistant reply format validation (`[STATE]KINDNESS=...;SUSPICION=...;DEPENDENCY=...`)
 5. Output moderation (fail-closed)
 6. Safe localized fallbacks when blocked or unusable
 

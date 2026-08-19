@@ -42,7 +42,7 @@ Client chat timeout is **65 seconds**, so network overhead still fits around the
 Assistant text must end with:
 
 ```text
-[STATE]KINDNESS=-1|0|1;SUSPICION=-1|0|1
+[STATE]KINDNESS=-1|0|1;SUSPICION=-1|0|1;DEPENDENCY=-1|0|1
 ```
 
 `AssistantReplyFormatValidator` enforces this before the reply is accepted.
