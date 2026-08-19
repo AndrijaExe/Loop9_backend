@@ -14,6 +14,8 @@ final class Event
 {
     public const CHAT_MESSAGES = 'chat.messages';
     public const CHAT_DENIED = 'chat.denied';
+    /** A player crossed the daily watch line — more chats than a normal run. */
+    public const ABUSE_WATCH = 'abuse.watch';
     public const API_ERRORS = 'api.errors';
     public const AI_FALLBACK = 'ai.fallback';
     public const AI_FAILED = 'ai.failed';
@@ -35,6 +37,14 @@ final class Event
     public static function runEnding(string $ending): string
     {
         return self::RUN_ENDED.'.'.$ending;
+    }
+
+    /**
+     * Why a chat was refused. The reasons are a closed set, so this cannot grow unbounded.
+     */
+    public static function chatDenied(string $reason): string
+    {
+        return self::CHAT_DENIED.'.'.$reason;
     }
 
     public static function tokensInFor(string $vendor): string

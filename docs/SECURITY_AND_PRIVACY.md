@@ -29,7 +29,9 @@
 | `game_global_daily` | global | 5000 / day |
 | `telemetry_ip` | IP | 30 / hour |
 
-Global daily quota is the AI cost kill-switch.
+Global daily quota is the AI cost kill-switch. Crossing `GAME_ABUSE_WATCH_CHATS` (default 40)
+in one UTC day does not refuse the player; it increments `abuse.watch` so a monitor can mail
+you before they hit the cap. The mark is a hash, the same as presence.
 
 ## Data handling
 

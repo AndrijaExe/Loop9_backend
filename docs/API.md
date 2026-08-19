@@ -36,7 +36,7 @@ Event counts and current levels for an external monitor. Requires `X-Metrics-Tok
 ```json
 {
   "counters": { "chat.messages": 1842, "ai.fallback": 3, "ai.tokens.in": 184200, "ai.tokens.out": 92100, "ai.cost.micros": 140, "ai.tokens.in.openai": 184200, "ai.tokens.out.openai": 92100, "ai.cost.micros.openai": 140 },
-  "gauges": { "players.online": 4, "players.day": 61 },
+  "gauges": { "players.online": 4, "players.day": 61, "abuse.chats.heaviest": 12, "abuse.players.hot": 0 },
   "storage": "redis",
   "at": "2026-08-13T09:00:00+00:00"
 }
@@ -52,7 +52,9 @@ from our env labels (`primary` / `fallback1`).
 
 `counters` never reset, so an interval is the difference between two readings. `gauges` are true
 only at `at` and mean nothing added up: `players.online` counts distinct players active in the
-last five minutes, `players.day` distinct players in the last 24 hours.
+last five minutes, `players.day` distinct players in the last 24 hours, `abuse.chats.heaviest`
+is today's highest single-player chat count, and `abuse.players.hot` is how many players have
+crossed the daily watch line.
 
 `storage` is `redis` or `memory`. Without `REDIS_URL` the counts live for the length of one
 request, so every reading comes back empty; the field says so rather than leaving a reader to

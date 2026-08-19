@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Adapter\Http;
 
+use App\Model\Telemetry\ChatVolume;
 use App\Model\Telemetry\CountersUnavailable;
 use App\Model\Telemetry\EventCounters;
 use App\Model\Telemetry\PlayerPresence;
@@ -26,6 +27,7 @@ final class MetricsController
     public function __construct(
         private readonly EventCounters $counters,
         private readonly PlayerPresence $presence,
+        private readonly ChatVolume $volume,
         #[Autowire('%env(METRICS_TOKEN)%')]
         private readonly string $token,
     ) {
@@ -47,6 +49,7 @@ final class MetricsController
         try {
             $counters = $this->counters->totals();
             $players = $this->presence->counts();
+            $volume = $this->volume->snapshot();
         } catch (CountersUnavailable) {
             return new JsonResponse([
                 'error' => ['message' => 'Counter storage unavailable.', 'code' => 'COUNTERS_UNAVAILABLE'],
@@ -60,6 +63,8 @@ final class MetricsController
             'gauges' => (object) [
                 'players.online' => $players['online'],
                 'players.day' => $players['day'],
+                'abuse.chats.heaviest' => $volume['heaviest'],
+                'abuse.players.hot' => $volume['hot'],
             ],
             'storage' => $this->counters->storage(),
             'at' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),

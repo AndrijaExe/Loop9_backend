@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Adapter\Http;
 
 use App\Application\ChatService;
+use App\Model\Telemetry\ChatVolume;
 use App\Model\Telemetry\Event;
 use App\Model\Telemetry\EventCounters;
 use App\Model\Telemetry\PlayerPresence;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
@@ -23,6 +25,9 @@ final class ChatController
         private readonly LoggerInterface $logger,
         private readonly EventCounters $counters,
         private readonly PlayerPresence $presence,
+        private readonly ChatVolume $volume,
+        #[Autowire('%env(int:GAME_ABUSE_WATCH_CHATS)%')]
+        private readonly int $watchAfter = 40,
     ) {
     }
 
@@ -43,7 +48,7 @@ final class ChatController
         // Cheap burst protection first — does not consume fair-use / cost quotas.
         $burstLimitStartedAt = hrtime(true);
         if ($denied = $this->rateLimiter->enforceIpLimit($auth->scope, $request)) {
-            return $this->refuse($denied);
+            return $this->refuse($denied, 'burst');
         }
         $burstLimitMs = RequestMonitor::elapsedMs($burstLimitStartedAt);
 
@@ -62,21 +67,21 @@ final class ChatController
         $this->presence->seen($playerId);
 
         if ($denied = $this->rateLimiter->enforceIpDailyQuota($auth->scope, $request)) {
-            return $this->refuse($denied);
+            return $this->refuse($denied, 'ip_daily');
         }
 
         if ($denied = $this->rateLimiter->enforcePlayerDailyQuota($playerId)) {
-            return $this->refuse($denied);
+            return $this->refuse($denied, 'player_daily');
         }
 
         if ($denied = $this->rateLimiter->enforcePlayerMonthlyQuota($playerId)) {
-            return $this->refuse($denied);
+            return $this->refuse($denied, 'player_monthly');
         }
 
         // Consume the shared cost kill-switch last so callers already denied
         // by a narrower quota cannot drain allowance for every player.
         if ($denied = $this->rateLimiter->enforceGlobalDailyQuota()) {
-            return $this->refuse($denied);
+            return $this->refuse($denied, 'global');
         }
         $quotaMs = RequestMonitor::elapsedMs($quotaStartedAt);
 
@@ -101,6 +106,7 @@ final class ChatController
         ]);
 
         $this->counters->increment(Event::CHAT_MESSAGES);
+        $this->noteVolume($playerId);
 
         return new JsonResponse($response->toArray(), 200, [
             'X-Request-Id' => $requestId,
@@ -110,10 +116,25 @@ final class ChatController
     /**
      * Every quota lands here so a refusal is counted once, whichever limit ran out.
      */
-    private function refuse(JsonResponse $denied): JsonResponse
+    private function refuse(JsonResponse $denied, string $reason): JsonResponse
     {
         $this->counters->increment(Event::CHAT_DENIED);
+        $this->counters->increment(Event::chatDenied($reason));
 
         return $denied;
+    }
+
+    private function noteVolume(string $playerId): void
+    {
+        $count = $this->volume->recorded($playerId);
+        if ($this->watchAfter <= 0 || $count !== $this->watchAfter) {
+            return;
+        }
+
+        $this->counters->increment(Event::ABUSE_WATCH);
+        $this->logger->warning('Player crossed the daily chat watch line.', [
+            'playerIdHash' => hash('sha256', $playerId),
+            'chatsToday' => $count,
+        ]);
     }
 }

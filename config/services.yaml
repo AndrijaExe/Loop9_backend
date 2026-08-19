@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
 parameters:
+    env(GAME_ABUSE_WATCH_CHATS): '40'
 
 services:
     _defaults:
@@ -12,6 +13,7 @@ services:
             # Built by the factories below, which decide whether Redis is available.
             - '../src/Adapter/Telemetry/RedisEventCounters.php'
             - '../src/Adapter/Telemetry/RedisPlayerPresence.php'
+            - '../src/Adapter/Telemetry/RedisChatVolume.php'
 
     App\Model\Telemetry\EventCounters:
         factory: ['App\Adapter\Telemetry\EventCountersFactory', 'create']
@@ -24,6 +26,13 @@ services:
         arguments:
             $redisUrl: '%env(REDIS_URL)%'
             $logger: '@monolog.logger.telemetry'
+
+    App\Model\Telemetry\ChatVolume:
+        factory: ['App\Adapter\Telemetry\ChatVolumeFactory', 'create']
+        arguments:
+            $redisUrl: '%env(REDIS_URL)%'
+            $logger: '@monolog.logger.telemetry'
+            $watchAfter: '%env(int:GAME_ABUSE_WATCH_CHATS)%'
 
     App\Model\Chat\AiChatGateway:
         alias: App\Adapter\AI\OpenAiCompatibleAiChatGateway

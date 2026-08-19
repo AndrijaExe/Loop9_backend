@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Adapter\Http;
 
 use App\Adapter\Http\MetricsController;
+use App\Adapter\Telemetry\InMemoryChatVolume;
 use App\Adapter\Telemetry\InMemoryEventCounters;
 use App\Adapter\Telemetry\InMemoryPlayerPresence;
 use App\Model\Telemetry\CountersUnavailable;
@@ -18,7 +19,7 @@ final class MetricsControllerTest extends TestCase
 {
     public function testAnUnconfiguredEndpointDoesNotExist(): void
     {
-        $controller = new MetricsController(new InMemoryEventCounters(), new InMemoryPlayerPresence(), '');
+        $controller = new MetricsController(new InMemoryEventCounters(), new InMemoryPlayerPresence(), new InMemoryChatVolume(), '');
 
         // Not 403: a server that has never been asked to publish counters should not
         // advertise a door for someone to start guessing tokens against.
@@ -45,7 +46,7 @@ final class MetricsControllerTest extends TestCase
             }
         };
 
-        $response = (new MetricsController($counters, new InMemoryPlayerPresence(), 'secret'))($this->asked());
+        $response = (new MetricsController($counters, new InMemoryPlayerPresence(), new InMemoryChatVolume(), 'secret'))($this->asked());
 
         self::assertSame(503, $response->getStatusCode());
     }
@@ -63,14 +64,14 @@ final class MetricsControllerTest extends TestCase
             }
         };
 
-        $response = (new MetricsController(new InMemoryEventCounters(), $presence, 'secret'))($this->asked());
+        $response = (new MetricsController(new InMemoryEventCounters(), $presence, new InMemoryChatVolume(), 'secret'))($this->asked());
 
         self::assertSame(503, $response->getStatusCode());
     }
 
     public function testCountersAreServedAsAnObjectEvenWhenEmpty(): void
     {
-        $response = (new MetricsController(new InMemoryEventCounters(), new InMemoryPlayerPresence(), 'secret'))(
+        $response = (new MetricsController(new InMemoryEventCounters(), new InMemoryPlayerPresence(), new InMemoryChatVolume(), 'secret'))(
             $this->asked(),
         );
 
@@ -85,11 +86,18 @@ final class MetricsControllerTest extends TestCase
         $presence->seen('steam-2');
         $presence->seen('steam-1');
 
-        $response = (new MetricsController(new InMemoryEventCounters(), $presence, 'secret'))($this->asked());
+        $volume = new InMemoryChatVolume(watchAfter: 2);
+        $volume->recorded('steam-1');
+        $volume->recorded('steam-1');
+        $volume->recorded('steam-2');
+
+        $response = (new MetricsController(new InMemoryEventCounters(), $presence, $volume, 'secret'))($this->asked());
         $payload = json_decode((string) $response->getContent(), true);
 
         // The same player twice is one player.
         self::assertSame(2, $payload['gauges']['players.online']);
+        self::assertSame(2, $payload['gauges']['abuse.chats.heaviest']);
+        self::assertSame(1, $payload['gauges']['abuse.players.hot']);
         // Zeros from a store that forgets read differently from zeros from a quiet day.
         self::assertSame('memory', $payload['storage']);
     }

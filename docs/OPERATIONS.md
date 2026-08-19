@@ -61,7 +61,8 @@ Never expect chat bodies, tickets, or tokens in logs.
 events, so a watcher can see volume and failure rates without parsing the log stream:
 
 ```
-chat.messages  chat.denied  api.errors  ai.fallback  ai.failed
+chat.messages  chat.denied  chat.denied.<reason>  abuse.watch
+api.errors  ai.fallback  ai.failed
 ai.tokens.in  ai.tokens.out  ai.cost.micros
 ai.tokens.in.<vendor>  ai.tokens.out.<vendor>  ai.cost.micros.<vendor>
 safety.blocked  safety.unavailable  auth.issued  auth.rejected
@@ -83,7 +84,13 @@ The same response carries gauges, which are levels rather than totals:
 
 ```
 players.online  players.day
+abuse.chats.heaviest  abuse.players.hot
 ```
+
+`chat.denied.<reason>` is `burst`, `ip_daily`, `player_daily`, `player_monthly` or `global`.
+`abuse.watch` increments once when a player first crosses `GAME_ABUSE_WATCH_CHATS` in a UTC day.
+`abuse.chats.heaviest` is that day's highest single-player count; `abuse.players.hot` is how many
+players have crossed the watch line. Marks are hashed, so the numbers say how hard, never who.
 
 Presence is a sorted set (`loop9:presence`) of one opaque mark per player, scored by the second
 they were last seen, written on a login, a chat message and a finished run. A set, because the

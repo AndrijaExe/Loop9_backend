@@ -34,6 +34,7 @@ Defaults live in [`.env`](../.env). Production secrets belong in the host enviro
 | `GAME_MONTHLY_PLAYER_QUOTA` | `2000` |
 | `GAME_DAILY_IP_QUOTA` | `300` |
 | `GAME_GLOBAL_DAILY_QUOTA` | `5000` |
+| `GAME_ABUSE_WATCH_CHATS` | `40` — a player who sends this many chats in one UTC day is counted as hot. Does not refuse the request; the quotas still do |
 
 Burst chat limit (`20/min`) and Steam auth (`10/min`) / telemetry (`30/h`) are configured in `config/packages/rate_limiter.yaml`.
 
