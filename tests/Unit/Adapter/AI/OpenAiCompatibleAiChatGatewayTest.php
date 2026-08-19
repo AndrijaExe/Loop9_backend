@@ -23,6 +23,81 @@ use Symfony\Component\HttpFoundation\RequestStack;
 
 final class OpenAiCompatibleAiChatGatewayTest extends TestCase
 {
+    public function testAPaidReplyAddsItsTokensEvenWhenTheAnswerIsThenThrownAway(): void
+    {
+        $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
+        $http->expects(self::exactly(2))
+            ->method('chatCompletion')
+            ->willReturnOnConsecutiveCalls(
+                [
+                    'statusCode' => 200,
+                    'data' => [],
+                    'latencyMs' => 12.0,
+                    'promptTokens' => 10,
+                    'completionTokens' => 5,
+                ],
+                [
+                    'statusCode' => 200,
+                    'data' => [],
+                    'latencyMs' => 14.0,
+                    'promptTokens' => 10,
+                    'completionTokens' => 8,
+                ],
+            );
+        $http->method('extractContent')->willReturnOnConsecutiveCalls(
+            'bad [STATE] duplicate[STATE]KINDNESS=0;SUSPICION=0',
+            'Recovered.[STATE]KINDNESS=0;SUSPICION=0',
+        );
+
+        $counters = new InMemoryEventCounters();
+        $this->makeGateway($http, $this->catalogWithFallback(), counters: $counters)
+            ->ask('hello', new RuntimeContext(loopIndex: 1));
+
+        // Both attempts were billed. A dashboard that only counted the reply the player saw
+        // would understate spend by exactly the failures that cost the most.
+        self::assertSame(20, $counters->totals()['ai.tokens.in'] ?? 0);
+        self::assertSame(13, $counters->totals()['ai.tokens.out'] ?? 0);
+    }
+
+    public function testKnownModelRatesBecomeADollarFigureTheMonitorCanAddUp(): void
+    {
+        $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
+        $http->expects(self::once())->method('chatCompletion')->willReturn([
+            'statusCode' => 200,
+            'data' => [],
+            'latencyMs' => 8.0,
+            'promptTokens' => 1_000,
+            'completionTokens' => 100,
+        ]);
+        $http->method('extractContent')->willReturn('Fine.[STATE]KINDNESS=0;SUSPICION=0');
+
+        $counters = new InMemoryEventCounters();
+        $this->makeGateway($http, $this->catalogPricedPrimary(), counters: $counters)
+            ->ask('hello', new RuntimeContext(loopIndex: 1));
+
+        // gemini-2.0-flash: $0.10 / $0.40 per million → 140 millionths of a dollar.
+        self::assertSame(140, $counters->totals()['ai.cost.micros'] ?? 0);
+    }
+
+    public function testAReplyWithoutUsageDoesNotInventTokens(): void
+    {
+        $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
+        $http->expects(self::once())->method('chatCompletion')->willReturn([
+            'statusCode' => 200,
+            'data' => [],
+            'latencyMs' => 8.0,
+            'promptTokens' => null,
+            'completionTokens' => null,
+        ]);
+        $http->method('extractContent')->willReturn('Fine.[STATE]KINDNESS=0;SUSPICION=0');
+
+        $counters = new InMemoryEventCounters();
+        $this->makeGateway($http, $this->catalogPrimaryOnly(), counters: $counters)
+            ->ask('hello', new RuntimeContext(loopIndex: 1));
+
+        self::assertSame([], $counters->totals());
+    }
+
     public function testTriesExactlyOneFallbackAfterInvalidFormat(): void
     {
         $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
@@ -442,6 +517,7 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
         OpenAiCompatibleHttpClientInterface $http,
         AiProviderCatalog $catalog,
         ?LoggerInterface $logger = null,
+        ?InMemoryEventCounters $counters = null,
     ): OpenAiCompatibleAiChatGateway {
         $projectDir = dirname(__DIR__, 4);
 
@@ -454,7 +530,7 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
             costEstimator: new CostEstimator(),
             logger: $logger ?? new NullLogger(),
             requestStack: new RequestStack(),
-            counters: new InMemoryEventCounters(),
+            counters: $counters ?? new InMemoryEventCounters(),
         );
     }
 
@@ -470,6 +546,27 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
         }
 
         self::fail(sprintf('Expected log message "%s".', $message));
+    }
+
+    private function catalogPricedPrimary(): AiProviderCatalog
+    {
+        return new AiProviderCatalog(
+            appEnv: 'test',
+            primaryUrl: 'https://example.test/v1/chat/completions',
+            primaryApiKey: 'key',
+            primaryModel: 'gemini-2.0-flash',
+            primaryTlsVerify: 'true',
+            fallbackEnabled: 'false',
+            fallbackUrl: '',
+            fallbackApiKey: '',
+            fallbackModel: '',
+            fallbackTlsVerify: 'true',
+            fallback2Enabled: 'false',
+            fallback2Url: '',
+            fallback2ApiKey: '',
+            fallback2Model: '',
+            fallback2TlsVerify: 'true',
+        );
     }
 
     private function catalogPrimaryOnly(): AiProviderCatalog

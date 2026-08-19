@@ -62,6 +62,7 @@ events, so a watcher can see volume and failure rates without parsing the log st
 
 ```
 chat.messages  chat.denied  api.errors  ai.fallback  ai.failed
+ai.tokens.in  ai.tokens.out  ai.cost.micros
 safety.blocked  safety.unavailable  auth.issued  auth.rejected
 run.ended  run.ended.<ending>
 ```

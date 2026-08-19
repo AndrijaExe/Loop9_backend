@@ -88,6 +88,11 @@ message fails because a counter did not increment. Where there is no Redis the c
 one request, which is all a single process can honestly claim — and the payload names its storage
 so a reader can tell an empty answer from a forgetful one.
 
+Token spend is counted from the usage the provider already returns on each completion, including
+replies this service then discards. Asking the provider's billing API would mean holding its key
+in a second place; the bill is already in the response. Cost is stored as millionths of a dollar
+so an integer counter can add it up.
+
 `PlayerPresence` is the second port, and the one number no probe can produce: a service answering
 `/healthz` with nobody in it looks exactly like one carrying a thousand players. It is a level
 rather than a total, so it is published as a gauge and never summed. The Redis adapter keeps a

@@ -17,6 +17,12 @@ final class Event
     public const API_ERRORS = 'api.errors';
     public const AI_FALLBACK = 'ai.fallback';
     public const AI_FAILED = 'ai.failed';
+    /** Prompt tokens the provider billed, including answers we then discarded. */
+    public const AI_TOKENS_IN = 'ai.tokens.in';
+    /** Completion tokens the provider billed, including answers we then discarded. */
+    public const AI_TOKENS_OUT = 'ai.tokens.out';
+    /** Estimated spend in millionths of a dollar, so an integer counter can hold a price. */
+    public const AI_COST_MICROS = 'ai.cost.micros';
     public const SAFETY_BLOCKED = 'safety.blocked';
     public const SAFETY_UNAVAILABLE = 'safety.unavailable';
     public const AUTH_ISSUED = 'auth.issued';

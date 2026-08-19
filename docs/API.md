@@ -35,7 +35,7 @@ Event counts and current levels for an external monitor. Requires `X-Metrics-Tok
 
 ```json
 {
-  "counters": { "chat.messages": 1842, "ai.fallback": 3 },
+  "counters": { "chat.messages": 1842, "ai.fallback": 3, "ai.tokens.in": 184200, "ai.tokens.out": 92100, "ai.cost.micros": 140 },
   "gauges": { "players.online": 4, "players.day": 61 },
   "storage": "redis",
   "at": "2026-08-13T09:00:00+00:00"

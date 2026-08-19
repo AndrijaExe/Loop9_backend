@@ -68,6 +68,13 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                     min(OpenAiCompatibleHttpClient::DEFAULT_TIMEOUT_SECONDS, $remaining),
                 );
 
+                // Counted even when the reply is then thrown away: the provider billed it.
+                $this->recordUsage(
+                    $provider['model'],
+                    $response['promptTokens'],
+                    $response['completionTokens'],
+                );
+
                 if ($response['statusCode'] !== 200) {
                     $errorSummary = $this->httpClient->summarizeErrorPayload($response['data']);
                     $this->logger->warning('AI provider returned error status.', [
@@ -269,6 +276,31 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
         return str_contains($message, 'invalid reply format')
             || str_contains($message, 'invalid response')
             || str_contains($message, 'rejected the request');
+    }
+
+    /**
+     * @param ?int $promptTokens     billed input, or null when the provider did not say
+     * @param ?int $completionTokens billed output, or null when the provider did not say
+     */
+    private function recordUsage(string $model, ?int $promptTokens, ?int $completionTokens): void
+    {
+        if ($promptTokens !== null && $promptTokens > 0) {
+            $this->counters->increment(Event::AI_TOKENS_IN, $promptTokens);
+        }
+
+        if ($completionTokens !== null && $completionTokens > 0) {
+            $this->counters->increment(Event::AI_TOKENS_OUT, $completionTokens);
+        }
+
+        $usd = $this->costEstimator->estimateUsd($model, $promptTokens, $completionTokens);
+        if ($usd === null || $usd <= 0) {
+            return;
+        }
+
+        $micros = (int) round($usd * 1_000_000);
+        if ($micros > 0) {
+            $this->counters->increment(Event::AI_COST_MICROS, $micros);
+        }
     }
 
     private function requestId(): string
