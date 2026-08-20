@@ -65,6 +65,25 @@ final class ChatRequestMapperTest extends TestCase
         self::assertSame('sr', $mapped['context']->language());
     }
 
+    /**
+     * The context is built from an explicit list of keys, so a field the client
+     * sends is dropped unless it is named here.
+     */
+    public function testCarriesAnomalyDetailThroughToTheContext(): void
+    {
+        $mapped = (new ChatRequestMapper())->map(Request::create(
+            '/api/chat',
+            'POST',
+            content: json_encode([
+                'message' => 'gde da gledam',
+                'anomaly_detail' => ['zone' => 'the north corridor', 'object' => 'a ceiling light panel'],
+            ], JSON_THROW_ON_ERROR),
+        ));
+
+        self::assertSame('the north corridor', $mapped['context']->anomalyDetail()?->zone());
+        self::assertSame('a ceiling light panel', $mapped['context']->anomalyDetail()?->object());
+    }
+
     public function testRejectsDeeplyNestedJson(): void
     {
         $this->expectException(BadRequestHttpException::class);

@@ -70,6 +70,7 @@ final class ChatRequestMapper
                 'ai_stability' => $payload['ai_stability'] ?? null,
                 'state' => $payload['state'] ?? null,
                 'anomaly_context' => $payload['anomaly_context'] ?? null,
+                'anomaly_detail' => $payload['anomaly_detail'] ?? null,
                 'loop_index' => $payload['loop_index'] ?? null,
                 'offtopic' => $payload['offtopic'] ?? null,
             ]),
