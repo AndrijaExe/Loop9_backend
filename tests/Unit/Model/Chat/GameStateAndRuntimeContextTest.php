@@ -28,6 +28,22 @@ final class GameStateAndRuntimeContextTest extends TestCase
         self::assertSame('DoorLock', $state->anomalyKey());
     }
 
+    /**
+     * The client always sends the field, so "none" must read as no anomaly at
+     * all rather than as a key named none.
+     */
+    public function testCleanFloorSentinelReadsAsNoAnomaly(): void
+    {
+        foreach (['none', 'None', ' NONE ', ''] as $sentinel) {
+            self::assertNull(
+                GameState::fromArray(['anomaly_key' => $sentinel])->anomalyKey(),
+                sprintf('"%s" must not count as an active anomaly.', $sentinel),
+            );
+        }
+
+        self::assertSame('MoveAnomaly', GameState::fromArray(['anomaly_key' => 'MoveAnomaly'])->anomalyKey());
+    }
+
     public function testParsesAnomalyDetail(): void
     {
         $context = RuntimeContext::fromArray([

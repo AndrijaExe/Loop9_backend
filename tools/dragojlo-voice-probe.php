@@ -73,7 +73,8 @@ $scenarios = [
             'language' => 'sr',
             'ai_stability' => 1.0,
             'anomaly_context' => 'No active anomaly currently detected.',
-            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.1, 'player_confidence' => 0.7],
+            // The client always sends the key; a clean floor spells it "none".
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.1, 'player_confidence' => 0.7, 'anomaly_key' => 'none'],
         ],
     ],
     [
@@ -110,7 +111,7 @@ $scenarios = [
             'language' => 'sr',
             'ai_stability' => 0.9,
             'anomaly_context' => 'No active anomaly currently detected.',
-            'state' => ['kindness' => -1, 'suspicion' => 0, 'dependency' => 0.7, 'player_confidence' => 0.5],
+            'state' => ['kindness' => -1, 'suspicion' => 0, 'dependency' => 0.7, 'player_confidence' => 0.5, 'anomaly_key' => 'none'],
         ],
     ],
     [
@@ -135,7 +136,7 @@ $scenarios = [
             'ai_stability' => 0.88,
             'offtopic' => true,
             'anomaly_context' => 'No active anomaly currently detected.',
-            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.3, 'player_confidence' => 0.6],
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.3, 'player_confidence' => 0.6, 'anomaly_key' => 'none'],
         ],
     ],
     [

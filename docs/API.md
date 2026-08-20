@@ -120,9 +120,13 @@ Request body (canonical fields):
     "dependency": 0.2,
     "player_confidence": 0.8,
     "repeat_anomaly": false,
-    "anomaly_key": ""
+    "anomaly_key": "LightFlickerAnomaly"
   },
-  "anomaly_context": "flicker in hallway"
+  "anomaly_context": "flicker in hallway",
+  "anomaly_detail": {
+    "zone": "the north corridor",
+    "object": "a ceiling light panel"
+  }
 }
 ```
 
@@ -131,6 +135,13 @@ Notes:
 - With session auth, client `player_id` is ignored; identity comes from the token.
 - `state.kindness` / `state.suspicion` are discrete `-1|0|1` values from the Unreal client.
 - `loop_index` shapes urgency and provider/token policy.
+- `state.anomaly_key` is `"none"` (or absent) on a clean floor. Any other value
+  means an anomaly is active and pins the recommendation to the lit elevator.
+- `anomaly_detail` is optional and lets the AI point at the anomaly without
+  solving the search: `zone` is a coarse landmark, `object` a category noun, both
+  in English and neither an actor name. How much of it reaches the reply depends
+  on `state.player_confidence`. Omit the object for placeless anomalies such as a
+  phantom chat message; omit the whole field to leave the prompt unchanged.
 
 Response `200`:
 

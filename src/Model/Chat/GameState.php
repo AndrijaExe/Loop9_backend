@@ -13,11 +13,14 @@ namespace App\Model\Chat;
  * - dependency: 0.0–1.0
  * - player_confidence: 0.0–1.0 (trust)
  * - repeat_anomaly: bool
- * - anomaly_key: string
+ * - anomaly_key: string, "none" when the floor is clean
  */
 final class GameState
 {
     public const MAX_ANOMALY_KEY_LENGTH = 128;
+
+    /** Sentinel the Unreal client sends for a floor with no active anomaly. */
+    public const NO_ANOMALY_KEY = 'none';
 
     public function __construct(
         private readonly ?int $kindness = null,
@@ -37,7 +40,11 @@ final class GameState
         $anomalyKey = null;
         if (isset($raw['anomaly_key']) && is_string($raw['anomaly_key'])) {
             $trimmed = trim($raw['anomaly_key']);
-            if ($trimmed !== '') {
+            // The client always sends the field and spells a clean floor "none",
+            // so the sentinel has to become absence here. Read as a key it means
+            // an anomaly is active, and the prompt then forces the lit elevator
+            // on a floor where the dark one is the right call.
+            if ($trimmed !== '' && strcasecmp($trimmed, self::NO_ANOMALY_KEY) !== 0) {
                 $anomalyKey = mb_substr($trimmed, 0, self::MAX_ANOMALY_KEY_LENGTH);
             }
         }

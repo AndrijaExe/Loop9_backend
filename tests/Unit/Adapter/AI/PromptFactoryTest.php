@@ -286,6 +286,23 @@ final class PromptFactoryTest extends TestCase
         self::assertStringNotContainsString('cannot tell where the anomaly is', $prompt);
     }
 
+    /**
+     * A clean floor arrives with anomaly_key set to "none", and the dark
+     * elevator is the right call there, so the lit-elevator directive must stay
+     * out of the prompt.
+     */
+    public function testCleanFloorIsNotPinnedToTheLitElevator(): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(RuntimeContext::fromArray([
+            'loop_index' => 5,
+            'anomaly_context' => 'No active anomaly currently detected.',
+            'state' => ['player_confidence' => 0.7, 'dependency' => 0.2, 'anomaly_key' => 'none'],
+        ]));
+
+        self::assertStringNotContainsString('An anomaly is confirmed active', $prompt);
+        self::assertStringNotContainsString('anomaly_key', $prompt);
+    }
+
     public function testPromptsForbidInventingAPlaceOrObject(): void
     {
         foreach ([1, 4] as $loopIndex) {
