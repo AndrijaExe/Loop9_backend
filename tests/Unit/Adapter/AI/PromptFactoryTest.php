@@ -6,6 +6,7 @@ namespace App\Tests\Unit\Adapter\AI;
 
 use App\Model\Chat\RuntimeContext;
 use App\Adapter\AI\PromptFactory;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class PromptFactoryTest extends TestCase
@@ -201,6 +202,98 @@ final class PromptFactoryTest extends TestCase
 
         self::assertStringContainsString('misleading guidance is allowed', $prompt);
         self::assertStringNotContainsString('only correct recommendation is the lit elevator', $prompt);
+    }
+
+    /**
+     * @return array<string, array{0: float, 1: list<string>, 2: list<string>}>
+     */
+    public static function trustLadderProvider(): array
+    {
+        return [
+            'distrust reveals nothing' => [
+                0.2,
+                ['cannot tell where the anomaly is', 'Do not name a place or an object'],
+                ['east corridor', 'office chair'],
+            ],
+            'partial trust reveals the place only' => [
+                0.45,
+                [
+                    'roughly where the anomaly is, but not which object',
+                    'never suggest skipping or avoiding that place',
+                    'east corridor',
+                ],
+                ['office chair'],
+            ],
+            'earned trust reveals place and kind' => [
+                0.8,
+                [
+                    'roughly where the anomaly is and what kind of thing it is',
+                    'never suggest skipping or avoiding that place',
+                    'east corridor | office chair',
+                ],
+                [],
+            ],
+        ];
+    }
+
+    #[DataProvider('trustLadderProvider')]
+    public function testTrustDecidesHowMuchOfTheAnomalyHeCanTell(
+        float $trust,
+        array $expected,
+        array $forbidden,
+    ): void {
+        $prompt = $this->factory->buildRuntimeContextPrompt(RuntimeContext::fromArray([
+            'loop_index' => 5,
+            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            'anomaly_detail' => ['zone' => 'east corridor', 'object' => 'office chair'],
+            'state' => ['player_confidence' => $trust, 'anomaly_key' => 'MoveAnomaly'],
+        ]));
+
+        foreach ($expected as $phrase) {
+            self::assertStringContainsString($phrase, $prompt);
+        }
+
+        foreach ($forbidden as $phrase) {
+            self::assertStringNotContainsString($phrase, $prompt);
+        }
+    }
+
+    /**
+     * A phantom chat message has no place on the floor, so only the kind can be
+     * offered and he must not invent somewhere for it to be.
+     */
+    public function testAnomalyWithoutAPlaceOffersOnlyTheKind(): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(RuntimeContext::fromArray([
+            'loop_index' => 8,
+            'anomaly_detail' => ['object' => 'a message in this chat'],
+            'state' => ['player_confidence' => 0.9, 'anomaly_key' => 'PhantomMessageAnomaly'],
+        ]));
+
+        self::assertStringContainsString('what kind of thing is wrong, but not where it is', $prompt);
+        self::assertStringContainsString('never a place', $prompt);
+    }
+
+    public function testAbsentAnomalyDetailLeavesTheRuntimePromptUnchanged(): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(RuntimeContext::fromArray([
+            'loop_index' => 5,
+            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            'state' => ['player_confidence' => 0.9, 'anomaly_key' => 'MoveAnomaly'],
+        ]));
+
+        self::assertStringNotContainsString('You can tell', $prompt);
+        self::assertStringNotContainsString('cannot tell where the anomaly is', $prompt);
+    }
+
+    public function testPromptsForbidInventingAPlaceOrObject(): void
+    {
+        foreach ([1, 4] as $loopIndex) {
+            $prompt = $this->factory->buildSystemPrompt($loopIndex);
+
+            self::assertStringContainsString('Never invent a place or an object', $prompt);
+            self::assertStringContainsString('that boundary is absolute', $prompt);
+        }
     }
 
     public function testPromptsStateTheSentenceBudgetTheValidatorEnforces(): void

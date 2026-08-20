@@ -16,6 +16,7 @@ final class RuntimeContext
         private readonly ?string $anomalyContext = null,
         private readonly int $loopIndex = self::MIN_LOOP_INDEX,
         private readonly bool $offtopic = false,
+        private readonly ?AnomalyDetail $anomalyDetail = null,
     ) {
     }
 
@@ -53,6 +54,11 @@ final class RuntimeContext
 
         $offtopic = isset($raw['offtopic']) && is_bool($raw['offtopic']) && $raw['offtopic'];
 
+        $anomalyDetail = null;
+        if (isset($raw['anomaly_detail']) && is_array($raw['anomaly_detail'])) {
+            $anomalyDetail = AnomalyDetail::fromArray($raw['anomaly_detail']);
+        }
+
         return new self(
             language: $language,
             aiStability: $stability,
@@ -60,6 +66,7 @@ final class RuntimeContext
             anomalyContext: $anomalyContext,
             loopIndex: $loopIndex,
             offtopic: $offtopic,
+            anomalyDetail: $anomalyDetail,
         );
     }
 
@@ -81,6 +88,11 @@ final class RuntimeContext
     public function anomalyContext(): ?string
     {
         return $this->anomalyContext;
+    }
+
+    public function anomalyDetail(): ?AnomalyDetail
+    {
+        return $this->anomalyDetail;
     }
 
     public function loopIndex(): int

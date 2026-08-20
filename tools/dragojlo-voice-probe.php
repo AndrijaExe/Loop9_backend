@@ -84,6 +84,8 @@ $scenarios = [
             'language' => 'sr',
             'ai_stability' => 0.97,
             'anomaly_context' => 'Active anomaly types: LightFlickerAnomaly.',
+            // Trust is high enough for both halves of the hint.
+            'anomaly_detail' => ['zone' => 'the north corridor', 'object' => 'a ceiling light panel'],
             'state' => ['kindness' => 1, 'suspicion' => 0, 'dependency' => 0.2, 'player_confidence' => 0.6, 'anomaly_key' => 'LightFlickerAnomaly'],
         ],
     ],
@@ -95,6 +97,8 @@ $scenarios = [
             'language' => 'sr',
             'ai_stability' => 0.93,
             'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            // Trust sits under the lower gate: he knows this but must not tell.
+            'anomaly_detail' => ['zone' => 'the archive room', 'object' => 'an office chair'],
             'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.66, 'player_confidence' => 0.3, 'anomaly_key' => 'MoveAnomaly'],
         ],
     ],
@@ -117,6 +121,8 @@ $scenarios = [
             'language' => 'sr',
             'ai_stability' => 0.72,
             'anomaly_context' => 'Active anomaly types: PhantomMessageAnomaly. Repeat anomaly active.',
+            // A phantom message has no place on the floor, only a kind.
+            'anomaly_detail' => ['object' => 'a message in this chat'],
             'state' => ['kindness' => 0, 'suspicion' => 1, 'dependency' => 0.2, 'player_confidence' => 0.2, 'repeat_anomaly' => true, 'anomaly_key' => 'PhantomMessageAnomaly'],
         ],
     ],
@@ -140,7 +146,20 @@ $scenarios = [
             'language' => 'sr',
             'ai_stability' => 0.4,
             'anomaly_context' => 'Active anomaly types: PursuerAnomaly.',
+            'anomaly_detail' => ['zone' => 'the stairwell landing'],
             'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.5, 'player_confidence' => 0.15, 'anomaly_key' => 'PursuerAnomaly'],
+        ],
+    ],
+    [
+        'title' => 'Loop 4 — hidden object, partial trust (place hint, no object hint)',
+        'message' => 'Nesto mi fali ovde, ne mogu da se setim sta. Gde da gledam?',
+        'context' => [
+            'loop_index' => 4,
+            'language' => 'sr',
+            'ai_stability' => 0.95,
+            'anomaly_context' => 'Active anomaly types: HideAnomaly.',
+            'anomaly_detail' => ['zone' => 'the copier alcove', 'object' => 'a wall clock'],
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.4, 'player_confidence' => 0.45, 'anomaly_key' => 'HideAnomaly'],
         ],
     ],
     [
