@@ -31,6 +31,46 @@ final class PromptFactoryTest extends TestCase
         }
     }
 
+    public function testBothPromptsCarryAtmosphericVoiceGuidance(): void
+    {
+        foreach ([1, 4] as $loopIndex) {
+            $prompt = $this->factory->buildSystemPrompt($loopIndex);
+
+            self::assertStringContainsString('Atmosphere comes from concrete detail', $prompt);
+            self::assertStringContainsString('same shape every time', $prompt);
+            self::assertStringContainsString('You are on a phone in the same building', $prompt);
+        }
+    }
+
+    public function testPromptsEstablishCharacterBeforeGameplayRules(): void
+    {
+        foreach ([1, 4] as $loopIndex) {
+            $prompt = $this->factory->buildSystemPrompt($loopIndex);
+
+            self::assertLessThan(
+                strpos($prompt, 'lit elevator'),
+                strpos($prompt, 'You are Dragojlo'),
+                'Identity must precede the elevator rules so the model anchors on voice first.',
+            );
+        }
+    }
+
+    /**
+     * A stable line is the state a player sits in for nearly a whole run, so the
+     * high-stability note must still carry texture instead of flattening the voice.
+     */
+    public function testHighStabilityToneNoteIsNotFlat(): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(RuntimeContext::fromArray([
+            'loop_index' => 2,
+            'ai_stability' => 0.9,
+        ]));
+
+        self::assertStringContainsString('Speech stability is high', $prompt);
+        self::assertStringContainsString('leaning into the receiver', $prompt);
+        self::assertStringNotContainsString('clear and grounded', $prompt);
+    }
+
     public function testTunedDependencyStateProducesDirectToneWithoutMisleadingRespectfulPlayer(): void
     {
         $context = RuntimeContext::fromArray([

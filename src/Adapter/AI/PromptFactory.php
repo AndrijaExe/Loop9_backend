@@ -104,13 +104,13 @@ final class PromptFactory
         $stability = $context->aiStability() ?? 1.0;
 
         if ($stability < 0.25) {
-            $parts[] = 'Speech stability is very low. Simulate breakdown by occasional swallowed letters and mild character permutations.';
+            $parts[] = 'Speech stability is very low: the line itself is failing. Swallow letters, break mid-thought, let a word come out wrong before you correct it.';
         } elseif ($stability < 0.5) {
-            $parts[] = 'Speech stability is low. Add slight verbal glitches, but keep meaning understandable.';
+            $parts[] = 'Speech stability is low: dropped syllables and slight verbal glitches, but the meaning still lands.';
         } elseif ($stability < 0.75) {
-            $parts[] = 'Speech stability is medium. Keep mostly stable speech with subtle tension.';
+            $parts[] = 'Speech stability is medium: steady voice, but you sound like a man watching a clock.';
         } else {
-            $parts[] = 'Speech stability is high. Keep speech clear and grounded.';
+            $parts[] = 'Speech stability is high: steady and close, like a man leaning into the receiver in a quiet room.';
         }
 
         return implode("\n", $parts);
