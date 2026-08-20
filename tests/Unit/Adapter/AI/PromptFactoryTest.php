@@ -42,6 +42,48 @@ final class PromptFactoryTest extends TestCase
         }
     }
 
+    /**
+     * The in-game tutorial teaches the elevators by their localized names, so a
+     * reply that switches to the English pair or invents a synonym contradicts
+     * the wording the player was taught by the same character.
+     */
+    public function testPromptsPinTheLocalizedElevatorWording(): void
+    {
+        foreach ([1, 4] as $loopIndex) {
+            $prompt = $this->factory->buildSystemPrompt($loopIndex);
+
+            self::assertStringContainsString('osvetljeni lift', $prompt);
+            self::assertStringContainsString('mračni lift', $prompt);
+            self::assertStringContainsString('beleuchteter Aufzug', $prompt);
+            self::assertStringContainsString('ascenseur éclairé', $prompt);
+            self::assertStringContainsString('освещённый лифт', $prompt);
+            self::assertStringContainsString('never a synonym of your own', $prompt);
+        }
+    }
+
+    /**
+     * The runtime context carries the internal taxonomy, so the model has to be
+     * told those names are reference only and not speakable to the player.
+     */
+    public function testPromptsForbidSpeakingInternalAnomalyLabels(): void
+    {
+        foreach ([1, 4] as $loopIndex) {
+            $prompt = $this->factory->buildSystemPrompt($loopIndex);
+
+            self::assertStringContainsString('PhantomMessage', $prompt);
+            self::assertStringContainsString('never be said to the player', $prompt);
+        }
+    }
+
+    public function testPromptsNeverDiscourageSearchingTheFloor(): void
+    {
+        foreach ([1, 4] as $loopIndex) {
+            $prompt = $this->factory->buildSystemPrompt($loopIndex);
+
+            self::assertStringContainsString('searching the floor is the whole of their job', $prompt);
+        }
+    }
+
     public function testPromptsEstablishCharacterBeforeGameplayRules(): void
     {
         foreach ([1, 4] as $loopIndex) {
