@@ -25,7 +25,8 @@ final class PromptFactoryTest extends TestCase
 
             self::assertStringContainsString('exactly nine', $prompt);
             self::assertStringContainsString('distrust', $prompt);
-            self::assertStringContainsString('ordinary request', $prompt);
+            self::assertStringContainsString('asking what a sound/object is', $prompt);
+            self::assertStringContainsString('surrenders the decision', $prompt);
             self::assertStringNotContainsString('confidently wrong', $prompt);
         }
     }
