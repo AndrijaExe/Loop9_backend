@@ -189,16 +189,21 @@ final class PromptFactory
      * How much is revealed rides on trust, which gives the meter an effect the
      * player can feel mid-run instead of only in the epilogue. The lower gate
      * matches the confidence at which he already turns nervous.
+     *
+     * An untagged anomaly falls through to the same admission as a distrusted
+     * one, which is simply true: nothing was sent, so he cannot tell. That way
+     * the guesswork stops everywhere and tagging the level upgrades him from
+     * admitting ignorance to pointing, rather than being what stops him lying.
      */
     private function describeKnowledgeBoundary(?AnomalyDetail $detail, ?GameState $state): ?string
     {
-        if ($detail === null) {
+        if ($state === null || $state->anomalyKey() === null) {
             return null;
         }
 
-        $trust = $state?->playerConfidence() ?? 0.0;
-        $zone = $trust >= self::TRUST_FOR_PLACE_HINT ? $detail->zone() : null;
-        $object = $trust >= self::TRUST_FOR_KIND_HINT ? $detail->object() : null;
+        $trust = $state->playerConfidence() ?? 0.0;
+        $zone = $trust >= self::TRUST_FOR_PLACE_HINT ? $detail?->zone() : null;
+        $object = $trust >= self::TRUST_FOR_KIND_HINT ? $detail?->object() : null;
 
         if ($zone === null && $object === null) {
             return 'You cannot tell where the anomaly is or what it is. Do not name a place or an object; '

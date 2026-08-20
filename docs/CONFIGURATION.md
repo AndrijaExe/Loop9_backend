@@ -44,7 +44,7 @@ Burst chat limit (`20/min`) and Steam auth (`10/min`) / telemetry (`30/h`) are c
 |---|---|
 | `AI_CHAT_COMPLETIONS_URL` | OpenAI-compatible chat completions URL |
 | `AI_API_KEY` | Required in prod |
-| `AI_MODEL` | Model id used for routing/cost logs |
+| `AI_MODEL` | Model id used for routing/cost logs. This is the `best` tier, so loops 4+ open on it: `gpt-5.6-terra` |
 | `AI_SYSTEM_PROMPT` | Optional override; otherwise files in `config/prompts` |
 | `AI_TLS_VERIFY` | Default `true` |
 
@@ -59,6 +59,10 @@ Burst chat limit (`20/min`) and Steam auth (`10/min`) / telemetry (`30/h`) are c
 | `AI_FALLBACK_TLS_VERIFY` | |
 | `AI_FALLBACK2_ENABLED` | Second fallback |
 | `AI_FALLBACK2_*` | Same shape as first fallback |
+
+Fallback2 is the `cheap` tier, so loops 1–3 open on it before anything else: set
+`AI_FALLBACK2_MODEL=gpt-5.6-luna`. Leaving its key empty silently drops the tier
+and sends every loop to the primary, which is easy to miss because nothing errors.
 
 Vendor mapping is env-driven. Privacy/store copy currently describe Groq primary + OpenAI fallback/moderation; set URLs/keys accordingly.
 

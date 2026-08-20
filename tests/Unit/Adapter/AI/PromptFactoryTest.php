@@ -274,12 +274,28 @@ final class PromptFactoryTest extends TestCase
         self::assertStringContainsString('never a place', $prompt);
     }
 
-    public function testAbsentAnomalyDetailLeavesTheRuntimePromptUnchanged(): void
+    /**
+     * An untagged anomaly must still stop the guessing: nothing was sent, so
+     * admitting he cannot tell is the truthful answer even at full trust.
+     */
+    public function testUntaggedAnomalyStillForbidsNamingAPlace(): void
     {
         $prompt = $this->factory->buildRuntimeContextPrompt(RuntimeContext::fromArray([
             'loop_index' => 5,
             'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
             'state' => ['player_confidence' => 0.9, 'anomaly_key' => 'MoveAnomaly'],
+        ]));
+
+        self::assertStringContainsString('cannot tell where the anomaly is', $prompt);
+        self::assertStringContainsString('Do not name a place or an object', $prompt);
+    }
+
+    public function testCleanFloorGetsNoKnowledgeBoundaryAtAll(): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(RuntimeContext::fromArray([
+            'loop_index' => 5,
+            'anomaly_context' => 'No active anomaly currently detected.',
+            'state' => ['player_confidence' => 0.9, 'anomaly_key' => 'none'],
         ]));
 
         self::assertStringNotContainsString('You can tell', $prompt);

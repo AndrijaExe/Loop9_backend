@@ -13,6 +13,9 @@
 - anomaly labels normalized from Unreal internal names
 - relationship tone bands (including moderate/high dependency)
 - explicit clean-loop-1 guard against inventing anomalies
+- the limit of what it knows about the active anomaly: how much of the client's
+  `anomaly_detail` it may say is gated on `player_confidence`, and with nothing
+  authored it is told to admit it cannot tell rather than invent a location
 
 ## Provider routing
 
@@ -24,7 +27,11 @@
 | 4–6 | balanced → best → cheap | 130 |
 | 7+ | best → balanced → cheap | 180 |
 
-Tiers map to configured primary / fallback / fallback2 providers via env.
+Tiers map to configured primary / fallback / fallback2 providers via env: primary
+is `best`, fallback1 `balanced`, fallback2 `cheap`. The shipped pair is
+`gpt-5.6-terra` as primary and `gpt-5.6-luna` as fallback2 with no balanced tier,
+which the table turns into luna for loops 1–3 and terra from loop 4 on, each
+covering the other when a reply comes back in a broken format.
 
 ## Cascade and deadlines
 
