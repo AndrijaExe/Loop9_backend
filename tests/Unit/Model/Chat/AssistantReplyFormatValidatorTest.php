@@ -75,6 +75,43 @@ final class AssistantReplyFormatValidatorTest extends TestCase
         );
     }
 
+    public function testTreatsAnAbsentDependencyAxisAsNeutral(): void
+    {
+        self::assertSame(
+            'Take the dark elevator.[STATE]KINDNESS=1;SUSPICION=0;DEPENDENCY=0',
+            $this->validator->normalizeAndValidate(
+                'Take the dark elevator.[STATE]KINDNESS=1;SUSPICION=0'
+            ),
+        );
+    }
+
+    /**
+     * A silent fall back to 0 would drop every dependency diagnosis the moment a
+     * model drifted, and the bonded endings would never fire.
+     */
+    #[DataProvider('malformedDependencyValues')]
+    public function testRejectsAMalformedDependencyInsteadOfReadingItAsNeutral(string $value): void
+    {
+        self::assertNull(
+            $this->validator->normalizeAndValidate(
+                "Take the dark elevator.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY={$value}"
+            )
+        );
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function malformedDependencyValues(): iterable
+    {
+        yield 'out of range' => ['2'];
+        yield 'negative out of range' => ['-5'];
+        yield 'decimal' => ['1.0'];
+        yield 'signed' => ['+1'];
+        yield 'not a number' => ['high'];
+        yield 'empty' => [''];
+    }
+
     public function testUsesNeutralStateWhenTrailerIsMissing(): void
     {
         self::assertSame(

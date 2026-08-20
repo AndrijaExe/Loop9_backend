@@ -142,12 +142,17 @@ final class AssistantReplyFormatValidator
         return (int) $matches[1];
     }
 
+    /**
+     * A missing axis is tolerated while models roll out the third value, but an
+     * axis the model did commit to must parse — otherwise drift like
+     * DEPENDENCY=1.0 would be silently read as 0.
+     */
     private function extractOptionalStateDelta(string $state, string $label): ?int
     {
-        if (!preg_match(
-            '/(?:\A|[\s,;|])' . preg_quote($label, '/') . '\s*[:=]\s*(-1|0|1)(?=\s*(?:[,;|]|\z))/ui',
+        if (preg_match(
+            '/(?:\A|[\s,;|])' . preg_quote($label, '/') . '\s*[:=]/ui',
             $state,
-        )) {
+        ) !== 1) {
             return 0;
         }
 
