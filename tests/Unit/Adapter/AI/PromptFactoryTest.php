@@ -131,6 +131,88 @@ final class PromptFactoryTest extends TestCase
         self::assertStringNotContainsString('misleading guidance is allowed', $prompt);
     }
 
+    /**
+     * No conversation history reaches the model, so the "once every five replies"
+     * pacing has to be decided per request instead of trusted to the model.
+     */
+    public function testWarmAddressIsPacedWithoutConversationMemory(): void
+    {
+        $context = RuntimeContext::fromArray(['loop_index' => 4]);
+        $allowedPhrase = 'You may use a warm form of address once in this reply.';
+
+        $allowed = 0;
+        for ($i = 0; $i < 100; ++$i) {
+            if (str_contains($this->factory->buildRuntimeContextPrompt($context, 'message ' . $i), $allowedPhrase)) {
+                ++$allowed;
+            }
+        }
+
+        self::assertGreaterThan(0, $allowed, 'The warm address must remain reachable.');
+        self::assertLessThan(40, $allowed, 'The warm address must stay a minority of replies.');
+    }
+
+    public function testSameMessageAlwaysYieldsTheSameAddressDirective(): void
+    {
+        $context = RuntimeContext::fromArray(['loop_index' => 4]);
+
+        self::assertSame(
+            $this->factory->buildRuntimeContextPrompt($context, 'Svetlo mi trepti.'),
+            $this->factory->buildRuntimeContextPrompt($context, 'Svetlo mi trepti.'),
+        );
+    }
+
+    /**
+     * A live probe had a model name the moved object and still send the player
+     * to the dark elevator, so the required recommendation is stated outright.
+     */
+    public function testActiveAnomalyPinsTheLitElevator(): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(RuntimeContext::fromArray([
+            'loop_index' => 5,
+            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            'state' => ['kindness' => 0, 'dependency' => 0.66, 'anomaly_key' => 'MoveAnomaly'],
+        ]));
+
+        self::assertStringContainsString('only correct recommendation is the lit elevator', $prompt);
+    }
+
+    public function testCleanLoopNeverPinsTheLitElevator(): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(RuntimeContext::fromArray([
+            'loop_index' => 6,
+            'anomaly_context' => 'No active anomaly currently detected.',
+            'state' => ['kindness' => 0, 'dependency' => 0.3],
+        ]));
+
+        self::assertStringNotContainsString('only correct recommendation is the lit elevator', $prompt);
+    }
+
+    /**
+     * A player who has earned misleading guidance must not be handed a rule
+     * that overrides it.
+     */
+    public function testAnomalyPinYieldsToPermittedMisleadingGuidance(): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(RuntimeContext::fromArray([
+            'loop_index' => 6,
+            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            'state' => ['kindness' => -1, 'dependency' => 0.7, 'anomaly_key' => 'MoveAnomaly'],
+        ]));
+
+        self::assertStringContainsString('misleading guidance is allowed', $prompt);
+        self::assertStringNotContainsString('only correct recommendation is the lit elevator', $prompt);
+    }
+
+    public function testPromptsStateTheSentenceBudgetTheValidatorEnforces(): void
+    {
+        foreach ([1, 4] as $loopIndex) {
+            $prompt = $this->factory->buildSystemPrompt($loopIndex);
+
+            self::assertStringContainsString('at most TWO of the marks', $prompt);
+            self::assertStringContainsString('run of dots counts as one', $prompt);
+        }
+    }
+
     public function testCleanFirstLoopAddsExplicitNoHallucinationGuard(): void
     {
         $prompt = $this->factory->buildRuntimeContextPrompt(RuntimeContext::fromArray([

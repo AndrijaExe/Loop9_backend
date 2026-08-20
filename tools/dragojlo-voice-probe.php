@@ -7,10 +7,12 @@ declare(strict_types=1);
  * Sends a spread of runtime states through the real PromptFactory and the real
  * reply validator so Dragojlo's voice can be judged before a build ships.
  *
- * Usage: AI_API_KEY=sk-... php tools/dragojlo-voice-probe.php [--dry] [--only=N]
+ * Usage: AI_API_KEY=sk-... php tools/dragojlo-voice-probe.php [options]
  *
- * --dry  print the exact prompts without calling the provider
- * --only run a single scenario by its number
+ * --dry       print the exact prompts without calling the provider
+ * --only=N    run a single scenario by its number
+ * --models=a,b compare several models over the same scenarios
+ * --json=PATH also write the run to a JSON file for side-by-side review
  */
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -22,12 +24,16 @@ use App\Model\Chat\RuntimeContext;
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 
-$options = getopt('', ['dry', 'only:']);
+$options = getopt('', ['dry', 'only:', 'models:', 'json:']);
 $dryRun = array_key_exists('dry', $options);
 $only = isset($options['only']) ? (int) $options['only'] : null;
+$jsonPath = isset($options['json']) ? (string) $options['json'] : null;
 
 $apiKey = trim((string) getenv('AI_API_KEY')) ?: readLocalEnv('AI_API_KEY');
-$model = trim((string) getenv('AI_MODEL')) ?: (readLocalEnv('AI_MODEL') ?: 'gpt-5.4-mini');
+$defaultModel = trim((string) getenv('AI_MODEL')) ?: (readLocalEnv('AI_MODEL') ?: 'gpt-5.4-mini');
+$models = isset($options['models'])
+    ? array_values(array_filter(array_map('trim', explode(',', (string) $options['models']))))
+    : [$defaultModel];
 
 if (!$dryRun && $apiKey === '') {
     fwrite(STDERR, "No AI_API_KEY. Export it, put it in the gitignored .env.local, or pass --dry.\n");
@@ -154,38 +160,58 @@ $factory = new PromptFactory(__DIR__ . '/../config/prompts', '');
 $validator = new AssistantReplyFormatValidator();
 $routing = new ProviderRoutingPolicy();
 
-printf("model=%s  prompts=%s\n", $dryRun ? '(dry run)' : $model, realpath(__DIR__ . '/../config/prompts'));
+printf("models=%s  prompts=%s\n",
+    $dryRun ? '(dry run)' : implode(', ', $models),
+    realpath(__DIR__ . '/../config/prompts'),
+);
 
-foreach ($scenarios as $index => $scenario) {
-    $number = $index + 1;
-    if ($only !== null && $only !== $number) {
-        continue;
+$collected = [];
+
+foreach ($models as $model) {
+    if (!$dryRun) {
+        printf("\n%s\n### MODEL: %s\n", str_repeat('#', 78), $model);
     }
 
-    $context = RuntimeContext::fromArray($scenario['context']);
-    $messages = $factory->buildMessages($scenario['message'], $context);
-    $maxTokens = $routing->maxTokensForLoop($context->loopIndex());
+    foreach ($scenarios as $index => $scenario) {
+        $number = $index + 1;
+        if ($only !== null && $only !== $number) {
+            continue;
+        }
 
-    printf("\n%s\n%d) %s\n", str_repeat('=', 78), $number, $scenario['title']);
-    printf("   prompt=%s  stability=%.2f  maxTokens=%d\n",
-        $context->loopIndex() <= 3 ? 'compact' : 'full',
-        $context->aiStability() ?? 1.0,
-        $maxTokens,
-    );
-    printf("   PLAYER: %s\n", $scenario['message']);
+        $context = RuntimeContext::fromArray($scenario['context']);
+        $messages = $factory->buildMessages($scenario['message'], $context);
+        $maxTokens = $routing->maxTokensForLoop($context->loopIndex());
 
-    if ($dryRun) {
-        printf("\n--- runtime context sent ---\n%s\n", $factory->buildRuntimeContextPrompt($context));
-        continue;
+        printf("\n%s\n%d) %s\n", str_repeat('=', 78), $number, $scenario['title']);
+        printf("   prompt=%s  stability=%.2f  maxTokens=%d\n",
+            $context->loopIndex() <= 3 ? 'compact' : 'full',
+            $context->aiStability() ?? 1.0,
+            $maxTokens,
+        );
+        printf("   PLAYER: %s\n", $scenario['message']);
+
+        if ($dryRun) {
+            printf("\n--- runtime context sent ---\n%s\n", $factory->buildRuntimeContextPrompt($context, $scenario['message']));
+            continue;
+        }
+
+        $raw = callProvider($apiKey, $model, $messages, $maxTokens);
+        if ($raw === null) {
+            continue;
+        }
+
+        $accepted = $validator->normalizeAndValidate($raw);
+        $collected[] = ['model' => $model, 'scenario' => $number, 'title' => $scenario['title']]
+            + ['language' => $scenario['context']['language'] ?? 'en']
+            + ['loop' => $context->loopIndex(), 'stability' => $context->aiStability() ?? 1.0]
+            + ['player' => $scenario['message']]
+            + report($raw, $accepted);
     }
+}
 
-    $raw = callProvider($apiKey, $model, $messages, $maxTokens);
-    if ($raw === null) {
-        continue;
-    }
-
-    $accepted = $validator->normalizeAndValidate($raw);
-    report($raw, $accepted);
+if ($jsonPath !== null && $collected !== []) {
+    file_put_contents($jsonPath, json_encode($collected, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    printf("\nwrote %d results to %s\n", count($collected), $jsonPath);
 }
 
 /**
@@ -234,14 +260,21 @@ function callProvider(string $apiKey, string $model, array $messages, int $maxTo
     return (string) $decoded['choices'][0]['message']['content'];
 }
 
-function report(string $raw, ?string $accepted): void
+/**
+ * @return array{reply: string, state: string, chars: int, sentences: int, accepted: bool}
+ */
+function report(string $raw, ?string $accepted): array
 {
-    $reply = $raw;
+    // The validator repairs malformed trailers, so its output is what the player
+    // actually sees; reading the raw content would misreport a repaired reply.
+    $source = $accepted ?? $raw;
+
+    $reply = $source;
     $state = '(none)';
-    $separator = mb_strpos($raw, '[STATE]');
+    $separator = mb_strpos($source, '[STATE]');
     if ($separator !== false) {
-        $reply = trim(mb_substr($raw, 0, $separator));
-        $state = trim(mb_substr($raw, $separator + 7));
+        $reply = trim(mb_substr($source, 0, $separator));
+        $state = trim(mb_substr($source, $separator + 7));
     }
 
     preg_match_all('/[.!?]+(?=\s|\z)/u', $reply, $endings);
@@ -254,4 +287,12 @@ function report(string $raw, ?string $accepted): void
         count($endings[0]),
         $accepted === null ? 'REJECTED' : 'accepted',
     );
+
+    return [
+        'reply' => $reply,
+        'state' => $state,
+        'chars' => mb_strlen($reply),
+        'sentences' => count($endings[0]),
+        'accepted' => $accepted !== null,
+    ];
 }

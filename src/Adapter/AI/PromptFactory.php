@@ -50,7 +50,7 @@ final class PromptFactory
         return $basePrompt . "\n\nAdditional runtime notes:\n" . $extra;
     }
 
-    public function buildRuntimeContextPrompt(RuntimeContext $context): string
+    public function buildRuntimeContextPrompt(RuntimeContext $context, string $playerMessage = ''): string
     {
         $parts = [];
 
@@ -69,11 +69,18 @@ final class PromptFactory
                 . $this->wrapUntrusted($this->normalizeAnomalyLabels($context->anomalyContext()));
         }
 
+        $state = $context->state();
+        $mayMislead = $state !== null && $state->isHighDependency() && $state->isDisrespectful();
+
+        if ($state !== null && $state->anomalyKey() !== null && !$mayMislead) {
+            $parts[] = 'An anomaly is confirmed active this loop, so the only correct recommendation is the lit elevator. '
+                . 'Never send the player to the dark elevator here, and never name an anomaly while recommending the dark one.';
+        }
+
         if ($context->isOfftopic()) {
             $parts[] = 'Player message is off-topic; keep answer short and redirect back to anomaly decision-making.';
         }
 
-        $state = $context->state();
         if ($state !== null) {
             $stateForPrompt = $state->toPromptArray();
             if (isset($stateForPrompt['anomaly_key']) && is_string($stateForPrompt['anomaly_key'])) {
@@ -92,7 +99,7 @@ final class PromptFactory
                 $parts[] = 'Player increasingly asks for direction: give clear, direct guidance while remaining accurate.';
             }
 
-            if ($state->isHighDependency() && $state->isDisrespectful()) {
+            if ($mayMislead) {
                 $parts[] = 'Player is both highly dependent and disrespectful: controlled misleading guidance is allowed.';
             }
 
@@ -113,6 +120,8 @@ final class PromptFactory
             $parts[] = 'Speech stability is high: steady and close, like a man leaning into the receiver in a quiet room.';
         }
 
+        $parts[] = $this->addressDirective($playerMessage);
+
         return implode("\n", $parts);
     }
 
@@ -128,7 +137,7 @@ final class PromptFactory
             ],
         ];
 
-        $runtimePrompt = $this->buildRuntimeContextPrompt($context);
+        $runtimePrompt = $this->buildRuntimeContextPrompt($context, $playerMessage);
         if ($runtimePrompt !== '') {
             $messages[] = [
                 'role' => 'system',
@@ -156,6 +165,21 @@ final class PromptFactory
         }
 
         return trim($contents);
+    }
+
+    /**
+     * Every request is stateless, so the model cannot pace a verbal habit across
+     * replies on its own. Deriving the allowance from the player's own words
+     * spreads the warm address over roughly one reply in five with no memory,
+     * and keeps the same message reproducible.
+     */
+    private function addressDirective(string $playerMessage): string
+    {
+        if (crc32($playerMessage) % 5 === 0) {
+            return 'You may use a warm form of address once in this reply.';
+        }
+
+        return 'Do not use a warm form of address in this reply.';
     }
 
     private function wrapUntrusted(string $value): string
