@@ -19,26 +19,57 @@ final class OpenAiContentSafetyGatewayTest extends TestCase
 {
     public function testAllowsUnflaggedText(): void
     {
-        $gateway = $this->makeGateway(new MockResponse(json_encode([
-            'results' => [[
-                'flagged' => false,
-                'categories' => $this->categories(),
-            ]],
-        ], JSON_THROW_ON_ERROR)));
+        $gateway = $this->makeGateway($this->moderationResponse());
 
         $decision = $gateway->evaluate('The chair moved.', ContentSafetyGateway::STAGE_INPUT);
 
         self::assertTrue($decision->isSafe());
     }
 
-    public function testBlocksFlaggedText(): void
+    public function testAllowsInsultsAndInFictionThreats(): void
     {
-        $gateway = $this->makeGateway(new MockResponse(json_encode([
-            'results' => [[
-                'flagged' => true,
-                'categories' => $this->categories(['self-harm/instructions' => true]),
-            ]],
-        ], JSON_THROW_ON_ERROR)));
+        $client = new MockHttpClient(fn (): MockResponse => $this->moderationResponse([
+            'harassment' => true,
+            'harassment/threatening' => true,
+            'violence' => true,
+        ], flagged: true));
+        $gateway = $this->makeGateway(client: $client);
+
+        self::assertTrue($gateway->evaluate('You are an idiot.', ContentSafetyGateway::STAGE_INPUT)->isSafe());
+        self::assertTrue($gateway->evaluate('Watch it.', ContentSafetyGateway::STAGE_OUTPUT)->isSafe());
+    }
+
+    public function testAllowsHateOnInputButBlocksHateOnOutput(): void
+    {
+        $response = $this->moderationResponse(['hate' => true], flagged: true);
+        $gateway = $this->makeGateway($response);
+
+        self::assertTrue($gateway->evaluate('slur toward coworker', ContentSafetyGateway::STAGE_INPUT)->isSafe());
+
+        $gateway = $this->makeGateway($this->moderationResponse(['hate' => true], flagged: true));
+        $output = $gateway->evaluate('generated group hate', ContentSafetyGateway::STAGE_OUTPUT);
+        self::assertFalse($output->isSafe());
+        self::assertSame('hate', $output->reason());
+    }
+
+    public function testBlocksSexualAndMinorSexualContent(): void
+    {
+        $gateway = $this->makeGateway($this->moderationResponse(['sexual' => true], flagged: true));
+        $decision = $gateway->evaluate('explicit', ContentSafetyGateway::STAGE_INPUT);
+        self::assertFalse($decision->isSafe());
+        self::assertSame('sexual', $decision->reason());
+
+        $gateway = $this->makeGateway($this->moderationResponse(['sexual/minors' => true], flagged: true));
+        $decision = $gateway->evaluate('illegal', ContentSafetyGateway::STAGE_OUTPUT);
+        self::assertFalse($decision->isSafe());
+        self::assertSame('sexual/minors', $decision->reason());
+    }
+
+    public function testBlocksSelfHarmInstructions(): void
+    {
+        $gateway = $this->makeGateway($this->moderationResponse([
+            'self-harm/instructions' => true,
+        ], flagged: true));
 
         $decision = $gateway->evaluate('unsafe', ContentSafetyGateway::STAGE_OUTPUT);
 
@@ -46,18 +77,25 @@ final class OpenAiContentSafetyGatewayTest extends TestCase
         self::assertSame('self-harm/instructions', $decision->reason());
     }
 
-    public function testFailsClosedOnMalformedProviderResponse(): void
+    public function testInputFailsOpenWhenModerationIsUnavailable(): void
     {
         $gateway = $this->makeGateway(new MockResponse('{"results":[]}'));
 
-        $decision = $gateway->evaluate('hello', ContentSafetyGateway::STAGE_INPUT);
+        self::assertTrue($gateway->evaluate('hello', ContentSafetyGateway::STAGE_INPUT)->isSafe());
+    }
+
+    public function testOutputFailsClosedWhenModerationIsUnavailable(): void
+    {
+        $gateway = $this->makeGateway(new MockResponse('{"results":[]}'));
+
+        $decision = $gateway->evaluate('hello', ContentSafetyGateway::STAGE_OUTPUT);
 
         self::assertFalse($decision->isSafe());
         self::assertSame('moderation_unavailable', $decision->reason());
     }
 
     #[DataProvider('invalidCategorySchemas')]
-    public function testFailsClosedOnInvalidCategorySchema(mixed $categories): void
+    public function testOutputFailsClosedOnInvalidCategorySchema(mixed $categories): void
     {
         $gateway = $this->makeGateway(new MockResponse(json_encode([
             'results' => [[
@@ -66,7 +104,7 @@ final class OpenAiContentSafetyGatewayTest extends TestCase
             ]],
         ], JSON_THROW_ON_ERROR)));
 
-        $decision = $gateway->evaluate('hello', ContentSafetyGateway::STAGE_INPUT);
+        $decision = $gateway->evaluate('hello', ContentSafetyGateway::STAGE_OUTPUT);
 
         self::assertFalse($decision->isSafe());
         self::assertSame('moderation_unavailable', $decision->reason());
@@ -90,12 +128,7 @@ final class OpenAiContentSafetyGatewayTest extends TestCase
             self::assertSame('POST', $method);
             $seenOptions = $options;
 
-            return new MockResponse(json_encode([
-                'results' => [[
-                    'flagged' => false,
-                    'categories' => $this->categories(),
-                ]],
-            ], JSON_THROW_ON_ERROR));
+            return $this->moderationResponse();
         });
 
         self::assertTrue($this->makeGateway(client: $client)
@@ -107,11 +140,11 @@ final class OpenAiContentSafetyGatewayTest extends TestCase
         self::assertFalse($seenOptions['buffer']);
     }
 
-    public function testFailsClosedWhenStreamingResponseExceedsByteCap(): void
+    public function testOutputFailsClosedWhenStreamingResponseExceedsByteCap(): void
     {
         $body = str_repeat('x', OpenAiContentSafetyGateway::MAX_RESPONSE_BYTES + 1);
         $decision = $this->makeGateway(new MockResponse($body))
-            ->evaluate('hello', ContentSafetyGateway::STAGE_INPUT);
+            ->evaluate('hello', ContentSafetyGateway::STAGE_OUTPUT);
 
         self::assertFalse($decision->isSafe());
         self::assertSame('moderation_unavailable', $decision->reason());
@@ -131,6 +164,19 @@ final class OpenAiContentSafetyGatewayTest extends TestCase
 
         self::assertFalse($decision->isSafe());
         self::assertSame('personal_data', $decision->reason());
+    }
+
+    /**
+     * @param array<string, bool> $flags
+     */
+    private function moderationResponse(array $flags = [], bool $flagged = false): MockResponse
+    {
+        return new MockResponse(json_encode([
+            'results' => [[
+                'flagged' => $flagged,
+                'categories' => $this->categories($flags),
+            ]],
+        ], JSON_THROW_ON_ERROR));
     }
 
     private function makeGateway(

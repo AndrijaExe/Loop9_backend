@@ -39,6 +39,29 @@ final class OpenAiContentSafetyGateway implements ContentSafetyGateway
         'violence/graphic',
     ];
 
+    /**
+     * Steam live-AI + OpenAI/Groq: block illegal / AO sexual, not gameplay tone.
+     * Insults, in-fiction threats, and horror violence must reach the model
+     * so KINDNESS/SUSPICION can move.
+     */
+    private const BLOCK_BOTH_STAGES = [
+        'sexual/minors',
+        'sexual',
+        'self-harm/intent',
+        'self-harm/instructions',
+        'illicit',
+        'illicit/violent',
+    ];
+
+    /**
+     * Steam distribution rules + OpenAI: the game must not generate
+     * group-targeted hate. Player insults toward Dragojlo stay allowed on input.
+     */
+    private const BLOCK_OUTPUT_ONLY = [
+        'hate',
+        'hate/threatening',
+    ];
+
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly LocalSafetyDetector $localDetector,
@@ -72,9 +95,7 @@ final class OpenAiContentSafetyGateway implements ContentSafetyGateway
 
         $apiKey = trim($this->apiKey) !== '' ? trim($this->apiKey) : trim($this->fallbackApiKey);
         if ($apiKey === '' || !$this->isHttpsUrl($this->url) || trim($this->model) === '') {
-            $this->logDecision($stage, 'unavailable', ['configuration'], 0.0);
-
-            return ContentSafetyDecision::blocked('moderation_unavailable');
+            return $this->unavailable($stage, ['configuration'], 0.0);
         }
 
         $startedAt = hrtime(true);
@@ -96,9 +117,7 @@ final class OpenAiContentSafetyGateway implements ContentSafetyGateway
             ]);
 
             if ($response->getStatusCode() !== 200) {
-                $this->logDecision($stage, 'unavailable', ['provider_status'], $startedAt);
-
-                return ContentSafetyDecision::blocked('moderation_unavailable');
+                return $this->unavailable($stage, ['provider_status'], $startedAt);
             }
 
             $body = '';
@@ -121,19 +140,24 @@ final class OpenAiContentSafetyGateway implements ContentSafetyGateway
                 || !is_array($result)
                 || !is_bool($result['flagged'] ?? null)
                 || !$this->hasCompleteCategorySchema($result['categories'] ?? null)) {
-                $this->logDecision($stage, 'unavailable', ['invalid_response'], $startedAt);
-
-                return ContentSafetyDecision::blocked('moderation_unavailable');
+                return $this->unavailable($stage, ['invalid_response'], $startedAt);
             }
 
             $categories = $this->flaggedCategories($result['categories'] ?? null);
-            if ($result['flagged'] || $categories !== []) {
-                $this->logDecision($stage, 'blocked', $categories !== [] ? $categories : ['provider_flagged'], $startedAt);
+            $blocking = $this->blockingCategories($categories, $stage);
+            if ($blocking !== []) {
+                $this->logDecision($stage, 'blocked', $blocking, $startedAt);
 
-                return ContentSafetyDecision::blocked($categories[0] ?? 'provider_flagged');
+                return ContentSafetyDecision::blocked($blocking[0]);
             }
 
-            $this->logDecision($stage, 'allowed', [], $startedAt);
+            if ($result['flagged'] && $categories === []) {
+                $this->logDecision($stage, 'blocked', ['provider_flagged'], $startedAt);
+
+                return ContentSafetyDecision::blocked('provider_flagged');
+            }
+
+            $this->logDecision($stage, 'allowed', $categories, $startedAt);
 
             return ContentSafetyDecision::safe();
         } catch (\Throwable $exception) {
@@ -143,8 +167,25 @@ final class OpenAiContentSafetyGateway implements ContentSafetyGateway
                 'exceptionClass' => $exception::class,
             ]);
 
-            return ContentSafetyDecision::blocked('moderation_unavailable');
+            return $this->unavailable($stage, ['exception'], $startedAt);
         }
+    }
+
+    /**
+     * Input fails open so a dead moderation key cannot freeze the coworker.
+     * Output fails closed so unchecked model text is not shown.
+     *
+     * @param list<string> $reasons
+     */
+    private function unavailable(string $stage, array $reasons, int|float $startedAt): ContentSafetyDecision
+    {
+        $this->logDecision($stage, 'unavailable', $reasons, $startedAt);
+
+        if ($stage === self::STAGE_INPUT) {
+            return ContentSafetyDecision::safe();
+        }
+
+        return ContentSafetyDecision::blocked('moderation_unavailable');
     }
 
     /**
@@ -164,6 +205,23 @@ final class OpenAiContentSafetyGateway implements ContentSafetyGateway
         }
 
         return array_slice($flagged, 0, 16);
+    }
+
+    /**
+     * @param list<string> $categories
+     * @return list<string>
+     */
+    private function blockingCategories(array $categories, string $stage): array
+    {
+        $blocked = self::BLOCK_BOTH_STAGES;
+        if ($stage === self::STAGE_OUTPUT) {
+            $blocked = array_merge($blocked, self::BLOCK_OUTPUT_ONLY);
+        }
+
+        return array_values(array_filter(
+            $categories,
+            static fn (string $category): bool => in_array($category, $blocked, true)
+        ));
     }
 
     private function hasCompleteCategorySchema(mixed $rawCategories): bool
@@ -207,8 +265,6 @@ final class OpenAiContentSafetyGateway implements ContentSafetyGateway
             'provider' => 'openai',
         ]);
 
-        // Counting here rather than at each call site keeps the log and the number
-        // describing the same event, whichever branch produced it.
         $counted = match ($verdict) {
             'blocked' => Event::SAFETY_BLOCKED,
             'unavailable' => Event::SAFETY_UNAVAILABLE,

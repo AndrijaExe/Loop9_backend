@@ -56,4 +56,4 @@ Live policy page: `GET /privacy` (`PrivacyController`). Use that URL in Steamwor
 
 ## Content safety
 
-Moderation is fail-closed for both input and output. Unsafe or unavailable moderation yields localized in-fiction fallbacks rather than raw unsafe model text.
+Input and output are checked with OpenAI Moderations plus local PII/copyright detectors. Gameplay tone (insults, in-fiction threats, horror) is allowed through. Illegal / AO sexual / self-harm-instruction categories, and generated group-targeted hate, use the in-fiction fallback. Input fails open if moderation is down; output fails closed.

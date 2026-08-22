@@ -52,8 +52,10 @@ final class PrivacyController
         <li><strong>AI conversations:</strong> the message you type, preferred language, and limited
         game-state context are processed to generate Dragojlo's reply. Loop 9 does not maintain a
         conversation-history database and does not write chat text to application logs.</li>
-        <li><strong>Safety moderation:</strong> player messages and generated replies are checked for
-        unsafe content before being displayed.</li>
+        <li><strong>Safety checks:</strong> messages are scanned locally for personal data
+        (email/phone-like text) and requests to reproduce copyrighted works, then checked
+        with a third-party moderation API for illegal and adult-sexual categories.
+        Insults and dark in-fiction talk are allowed so the character can react.</li>
         <li><strong>Technical and security data:</strong> request identifiers, response status,
         timing information, hashed player/IP-derived identifiers, quota counters, and error categories
         are processed for security, abuse prevention, reliability, and cost control. Infrastructure

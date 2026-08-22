@@ -5,7 +5,7 @@
 - App host: Render (recommended always-on Starter or better before public launch)
 - Rate-limit storage and event counters: Redis (`REDIS_URL`)
 - AI providers: env-configured OpenAI-compatible HTTPS endpoints
-- Moderation: OpenAI Moderations API
+- Moderation: OpenAI Moderations API (narrow: illegal / AO sexual / self-harm instructions; insults pass)
 - Logs: structured JSON on stderr
 
 Health check path: **`/readyz`**

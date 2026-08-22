@@ -58,12 +58,14 @@ Assistant text must end with:
 
 Order in `ChatService`:
 
-1. Local safety detector (PII / copyright-request style checks)
+1. Local safety detector (email/phone-like PII, copyright-reproduction requests)
 2. OpenAI Moderations API on input
 3. AI generation
 4. OpenAI Moderations API on output
 
-Fail-closed: if moderation is unavailable, the request is blocked and replaced with a localized in-fiction fallback from `SafeChatFallbackFactory` (EN/SR/DE/FR/RU).
+Gameplay tone is allowed: insults, in-fiction threats, and horror violence pass so the model can emit `KINDNESS` / `SUSPICION` deltas. Blocked on both stages: `sexual`, `sexual/minors`, `self-harm/intent`, `self-harm/instructions`, `illicit`, `illicit/violent`. Output also blocks `hate` / `hate/threatening` (Steam + OpenAI: the game must not generate group-targeted hate).
+
+If the Moderations API is down: **input fails open** (chat still works), **output fails closed** (unchecked model text is replaced by `SafeChatFallbackFactory`).
 
 Message content is never written to logs. Only decision metadata and latency are logged (`Content safety decision.`).
 
