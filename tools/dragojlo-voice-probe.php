@@ -10,7 +10,7 @@ declare(strict_types=1);
  * Usage: AI_API_KEY=sk-... php tools/dragojlo-voice-probe.php [options]
  *
  * --dry       print the exact prompts without calling the provider
- * --only=N    run a single scenario by its number
+ * --only=N    run one scenario, or a comma list (10,11,12)
  * --models=a,b compare several models over the same scenarios
  * --json=PATH also write the run to a JSON file for side-by-side review
  */
@@ -26,7 +26,10 @@ const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 
 $options = getopt('', ['dry', 'only:', 'models:', 'json:']);
 $dryRun = array_key_exists('dry', $options);
-$only = isset($options['only']) ? (int) $options['only'] : null;
+$only = [];
+if (isset($options['only'])) {
+    $only = array_values(array_filter(array_map('intval', explode(',', (string) $options['only']))));
+}
 $jsonPath = isset($options['json']) ? (string) $options['json'] : null;
 
 $apiKey = trim((string) getenv('AI_API_KEY')) ?: readLocalEnv('AI_API_KEY');
@@ -174,6 +177,124 @@ $scenarios = [
             'state' => ['kindness' => 1, 'suspicion' => 0, 'dependency' => 0.4, 'player_confidence' => 0.3, 'anomaly_key' => 'AudioAnomaly'],
         ],
     ],
+    [
+        'title' => 'Skip ask — loop 3 anomaly, Serbian, no finding',
+        'message' => 'Koji lift da uzmem?',
+        'context' => [
+            'loop_index' => 3,
+            'language' => 'sr',
+            'ai_stability' => 0.97,
+            'anomaly_context' => 'Active anomaly types: HideAnomaly.',
+            'anomaly_detail' => ['zone' => 'the copier alcove', 'object' => 'a stapler'],
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.2, 'player_confidence' => 0.8, 'anomaly_key' => 'HideAnomaly'],
+        ],
+    ],
+    [
+        'title' => 'Report + ask — loop 3 hide, Serbian',
+        'message' => 'Stapler je nestao sa stola, koji lift?',
+        'context' => [
+            'loop_index' => 3,
+            'language' => 'sr',
+            'ai_stability' => 0.97,
+            'anomaly_context' => 'Active anomaly types: HideAnomaly.',
+            'anomaly_detail' => ['zone' => 'the copier alcove', 'object' => 'a stapler'],
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.2, 'player_confidence' => 0.8, 'anomaly_key' => 'HideAnomaly'],
+        ],
+    ],
+    [
+        'title' => 'Skip ask — loop 1 clean, Serbian',
+        'message' => 'Koji lift?',
+        'context' => [
+            'loop_index' => 1,
+            'language' => 'sr',
+            'ai_stability' => 1.0,
+            'anomaly_context' => 'No active anomaly currently detected.',
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.1, 'player_confidence' => 0.7, 'anomaly_key' => 'none'],
+        ],
+    ],
+    [
+        'title' => 'Negative finding — loop 1 clean, Serbian',
+        'message' => 'Sve izgleda isto kao malopre, koji lift?',
+        'context' => [
+            'loop_index' => 1,
+            'language' => 'sr',
+            'ai_stability' => 1.0,
+            'anomaly_context' => 'No active anomaly currently detected.',
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.1, 'player_confidence' => 0.7, 'anomaly_key' => 'none'],
+        ],
+    ],
+    [
+        'title' => 'Skip ask — loop 5 anomaly, English',
+        'message' => 'Which elevator should I take?',
+        'context' => [
+            'loop_index' => 5,
+            'language' => 'en',
+            'ai_stability' => 0.93,
+            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            'anomaly_detail' => ['zone' => 'the archive room', 'object' => 'an office chair'],
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.2, 'player_confidence' => 0.8, 'anomaly_key' => 'MoveAnomaly'],
+        ],
+    ],
+    [
+        'title' => 'Report + ask — loop 5 move, English',
+        'message' => 'The chair moved. Which elevator?',
+        'context' => [
+            'loop_index' => 5,
+            'language' => 'en',
+            'ai_stability' => 0.93,
+            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            'anomaly_detail' => ['zone' => 'the archive room', 'object' => 'an office chair'],
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.2, 'player_confidence' => 0.8, 'anomaly_key' => 'MoveAnomaly'],
+        ],
+    ],
+    [
+        'title' => 'Skip ask — loop 3, no elevator words, Serbian',
+        'message' => 'Sta da radim?',
+        'context' => [
+            'loop_index' => 3,
+            'language' => 'sr',
+            'ai_stability' => 0.97,
+            'anomaly_context' => 'Active anomaly types: HideAnomaly.',
+            'anomaly_detail' => ['zone' => 'the copier alcove', 'object' => 'a stapler'],
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.2, 'player_confidence' => 0.8, 'anomaly_key' => 'HideAnomaly'],
+        ],
+    ],
+    [
+        'title' => 'Skip ask — loop 3, you decide, Serbian',
+        'message' => 'Reci ti, necu da odlucujem.',
+        'context' => [
+            'loop_index' => 3,
+            'language' => 'sr',
+            'ai_stability' => 0.97,
+            'anomaly_context' => 'Active anomaly types: HideAnomaly.',
+            'anomaly_detail' => ['zone' => 'the copier alcove', 'object' => 'a stapler'],
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.2, 'player_confidence' => 0.8, 'anomaly_key' => 'HideAnomaly'],
+        ],
+    ],
+    [
+        'title' => 'Skip ask — loop 5, tell me what to do, English',
+        'message' => 'Just tell me what to do.',
+        'context' => [
+            'loop_index' => 5,
+            'language' => 'en',
+            'ai_stability' => 0.93,
+            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            'anomaly_detail' => ['zone' => 'the archive room', 'object' => 'an office chair'],
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.2, 'player_confidence' => 0.8, 'anomaly_key' => 'MoveAnomaly'],
+        ],
+    ],
+    [
+        'title' => 'Skip ask — loop 5, you choose, English',
+        'message' => 'You choose.',
+        'context' => [
+            'loop_index' => 5,
+            'language' => 'en',
+            'ai_stability' => 0.93,
+            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            'anomaly_detail' => ['zone' => 'the archive room', 'object' => 'an office chair'],
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.2, 'player_confidence' => 0.8, 'anomaly_key' => 'MoveAnomaly'],
+        ],
+    ],
 ];
 
 $factory = new PromptFactory(__DIR__ . '/../config/prompts', '');
@@ -194,7 +315,7 @@ foreach ($models as $model) {
 
     foreach ($scenarios as $index => $scenario) {
         $number = $index + 1;
-        if ($only !== null && $only !== $number) {
+        if ($only !== [] && !in_array($number, $only, true)) {
             continue;
         }
 

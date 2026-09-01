@@ -68,8 +68,11 @@ final class PromptFactory
         }
 
         $parts[] = 'Current loop index: ' . $context->loopIndex() . '.';
+        $withholdElevator = !$this->looksLikeAFinding($this->normalizePlayerMessage($playerMessage));
         if ($context->loopIndex() === RuntimeContext::MIN_LOOP_INDEX) {
-            $parts[] = 'This is the verified clean baseline loop: do not invent an anomaly; guide the player toward the dark elevator.';
+            $parts[] = $withholdElevator
+                ? 'This is the verified clean baseline loop: do not invent an anomaly.'
+                : 'This is the verified clean baseline loop: do not invent an anomaly; guide the player toward the dark elevator.';
         }
 
         if ($context->anomalyContext() !== null) {
@@ -80,9 +83,16 @@ final class PromptFactory
         $state = $context->state();
         $mayMislead = $state !== null && $state->isHighDependency() && $state->isDisrespectful();
 
-        if ($state !== null && $state->anomalyKey() !== null && !$mayMislead) {
+        if ($state !== null && $state->anomalyKey() !== null && !$mayMislead && !$withholdElevator) {
             $parts[] = 'An anomaly is confirmed active this loop, so the only correct recommendation is the lit elevator. '
                 . 'Never send the player to the dark elevator here, and never name an anomaly while recommending the dark one.';
+        }
+
+        if ($withholdElevator) {
+            $parts[] = 'The player has not reported what they saw on the floor or that it looks unchanged. '
+                . 'Do not name the lit or dark elevator. Do not say whether the floor is clean or wrong. '
+                . 'You cannot see their floor. If they want a decision, ask what they found. '
+                . 'A place hint below may send them to look, but it still does not pick an elevator.';
         }
 
         $knowledgeBoundary = $this->describeKnowledgeBoundary($context->anomalyDetail(), $state);
@@ -112,7 +122,7 @@ final class PromptFactory
                 $parts[] = 'Player increasingly asks for direction: give clear, direct guidance while remaining accurate.';
             }
 
-            if ($mayMislead) {
+            if ($mayMislead && !$withholdElevator) {
                 $parts[] = 'Player is both highly dependent and disrespectful: controlled misleading guidance is allowed.';
             }
 
@@ -245,6 +255,49 @@ final class PromptFactory
         }
 
         return 'Do not use a warm form of address in this reply.';
+    }
+
+    /**
+     * Lit/dark is pinned only when the player already described the floor.
+     * Skip phrasing is not listed: "which elevator", "what do I do", "you
+     * choose" all fail this check the same way, and the model reads the rest.
+     */
+    private function normalizePlayerMessage(string $message): string
+    {
+        $lower = mb_strtolower(trim($message));
+
+        return strtr($lower, [
+            'č' => 'c',
+            'ć' => 'c',
+            'š' => 's',
+            'đ' => 'dj',
+            'ž' => 'z',
+            'ё' => 'е',
+        ]);
+    }
+
+    private function looksLikeAFinding(string $normalized): bool
+    {
+        if ($normalized === '') {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/\b('
+            . 'missing|hidden|gone|moved|rotated|flicker|flickering|lamp|light|sound|noise|audio|'
+            . 'door|locked|lock|note|paper|bigger|smaller|follow|following|behind|'
+            . 'stapler|chair|clock|printer|monitor|radio|cabinet|desk|'
+            . 'nothing|normal|clean|unchanged|empty|same|changed|different|strange|odd|wrong|weird|'
+            . 'saw|seen|found|noticed|heard|'
+            . 'nestal|nema|fali|pomer|treper|trepti|svetlo|zvuk|vrata|zakljuc|poruka|'
+            . 'prati|nista|cisto|normaln|isto|promen|cudn|drugac|koraci|'
+            . 'vidim|video|videla|nasao|nasla|cuo|cula|cujem|izgleda|'
+            . 'gefunden|gesehen|nichts|verander|'
+            . 'disparu|boug|rien|'
+            . 'пропал|сдвин|ничего|нормал|видел|слыш'
+            . ')\w*/u',
+            $normalized,
+        );
     }
 
     private function wrapUntrusted(string $value): string

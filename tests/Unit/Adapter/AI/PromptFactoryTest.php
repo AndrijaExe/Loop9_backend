@@ -168,11 +168,14 @@ final class PromptFactoryTest extends TestCase
      */
     public function testActiveAnomalyPinsTheLitElevator(): void
     {
-        $prompt = $this->factory->buildRuntimeContextPrompt(RuntimeContext::fromArray([
-            'loop_index' => 5,
-            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
-            'state' => ['kindness' => 0, 'dependency' => 0.66, 'anomaly_key' => 'MoveAnomaly'],
-        ]));
+        $prompt = $this->factory->buildRuntimeContextPrompt(
+            RuntimeContext::fromArray([
+                'loop_index' => 5,
+                'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+                'state' => ['kindness' => 0, 'dependency' => 0.66, 'anomaly_key' => 'MoveAnomaly'],
+            ]),
+            'The chair moved.',
+        );
 
         self::assertStringContainsString('only correct recommendation is the lit elevator', $prompt);
     }
@@ -194,11 +197,14 @@ final class PromptFactoryTest extends TestCase
      */
     public function testAnomalyPinYieldsToPermittedMisleadingGuidance(): void
     {
-        $prompt = $this->factory->buildRuntimeContextPrompt(RuntimeContext::fromArray([
-            'loop_index' => 6,
-            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
-            'state' => ['kindness' => -1, 'dependency' => 0.7, 'anomaly_key' => 'MoveAnomaly'],
-        ]));
+        $prompt = $this->factory->buildRuntimeContextPrompt(
+            RuntimeContext::fromArray([
+                'loop_index' => 6,
+                'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+                'state' => ['kindness' => -1, 'dependency' => 0.7, 'anomaly_key' => 'MoveAnomaly'],
+            ]),
+            'Stolica je pomerena, hajde odluci.',
+        );
 
         self::assertStringContainsString('misleading guidance is allowed', $prompt);
         self::assertStringNotContainsString('only correct recommendation is the lit elevator', $prompt);
@@ -347,7 +353,7 @@ final class PromptFactoryTest extends TestCase
         ]));
 
         self::assertStringContainsString('verified clean baseline loop', $prompt);
-        self::assertStringContainsString('dark elevator', $prompt);
+        self::assertStringNotContainsString('guide the player toward the dark elevator', $prompt);
     }
 
     public function testNormalizesInternalAnomalyLabelsInRuntimeContext(): void
@@ -364,5 +370,126 @@ final class PromptFactoryTest extends TestCase
         self::assertStringContainsString('Hide (missing/hidden objects)', $prompt);
         self::assertStringNotContainsString('LightFlickerAnomaly', $prompt);
         self::assertStringNotContainsString('HideAnomaly', $prompt);
+    }
+
+    /**
+     * The lit-elevator pin is what made "which elevator?" a skip. A bare ask
+     * must drop that pin even when an anomaly is confirmed.
+     */
+    public function testElevatorAskWithoutFindingWithholdsTheVerdict(): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(
+            RuntimeContext::fromArray([
+                'loop_index' => 3,
+                'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+                'anomaly_detail' => ['zone' => 'the archive room', 'object' => 'an office chair'],
+                'state' => ['kindness' => 0, 'dependency' => 0.2, 'player_confidence' => 0.8, 'anomaly_key' => 'MoveAnomaly'],
+            ]),
+            'Koji lift da uzmem?',
+        );
+
+        self::assertStringContainsString('has not reported what they saw', $prompt);
+        self::assertStringNotContainsString('only correct recommendation is the lit elevator', $prompt);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function skipAskProvider(): array
+    {
+        return [
+            'serbian what do I do' => ['Sta da radim?'],
+            'serbian you decide' => ['Reci ti, necu da odlucujem.'],
+            'english tell me' => ['Just tell me what to do.'],
+            'english you choose' => ['You choose.'],
+            'english help' => ['I don\'t know, help me.'],
+        ];
+    }
+
+    #[DataProvider('skipAskProvider')]
+    public function testAnyDecisionAskWithoutAFindingWithholdsTheVerdict(string $message): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(
+            RuntimeContext::fromArray([
+                'loop_index' => 3,
+                'anomaly_context' => 'Active anomaly types: HideAnomaly.',
+                'state' => ['kindness' => 0, 'dependency' => 0.2, 'anomaly_key' => 'HideAnomaly'],
+            ]),
+            $message,
+        );
+
+        self::assertStringContainsString('has not reported what they saw', $prompt);
+        self::assertStringNotContainsString('only correct recommendation is the lit elevator', $prompt);
+    }
+
+    public function testReportedFindingStillPinsTheLitElevator(): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(
+            RuntimeContext::fromArray([
+                'loop_index' => 3,
+                'anomaly_context' => 'Active anomaly types: HideAnomaly.',
+                'state' => ['kindness' => 0, 'dependency' => 0.2, 'anomaly_key' => 'HideAnomaly'],
+            ]),
+            'Stapler je nestao, koji lift?',
+        );
+
+        self::assertStringContainsString('only correct recommendation is the lit elevator', $prompt);
+        self::assertStringNotContainsString('has not reported what they saw', $prompt);
+    }
+
+    public function testCleanLoopElevatorAskDoesNotPinTheDarkElevator(): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(
+            RuntimeContext::fromArray([
+                'loop_index' => 1,
+                'anomaly_context' => 'No active anomaly currently detected.',
+                'state' => ['kindness' => 0, 'dependency' => 0.1, 'anomaly_key' => 'none'],
+            ]),
+            'Which elevator?',
+        );
+
+        self::assertStringContainsString('has not reported what they saw', $prompt);
+        self::assertStringContainsString('verified clean baseline loop', $prompt);
+        self::assertStringNotContainsString('guide the player toward the dark elevator', $prompt);
+    }
+
+    public function testNegativeFindingOnCleanLoopStillGuidesToTheDarkElevator(): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(
+            RuntimeContext::fromArray([
+                'loop_index' => 1,
+                'anomaly_context' => 'No active anomaly currently detected.',
+                'state' => ['kindness' => 0, 'dependency' => 0.1, 'anomaly_key' => 'none'],
+            ]),
+            'Sve izgleda isto, koji lift?',
+        );
+
+        self::assertStringContainsString('guide the player toward the dark elevator', $prompt);
+        self::assertStringNotContainsString('has not reported what they saw', $prompt);
+    }
+
+    public function testElevatorAskWithholdBeatsMisleadingGuidance(): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(
+            RuntimeContext::fromArray([
+                'loop_index' => 6,
+                'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+                'state' => ['kindness' => -1, 'dependency' => 0.7, 'anomaly_key' => 'MoveAnomaly'],
+            ]),
+            'Hajde reci koji lift.',
+        );
+
+        self::assertStringContainsString('has not reported what they saw', $prompt);
+        self::assertStringNotContainsString('misleading guidance is allowed', $prompt);
+        self::assertStringNotContainsString('only correct recommendation is the lit elevator', $prompt);
+    }
+
+    public function testPromptsStateTheElevatorAskMustWaitForAFinding(): void
+    {
+        foreach ([1, 4] as $loopIndex) {
+            $prompt = $this->factory->buildSystemPrompt($loopIndex);
+
+            self::assertStringContainsString('have not told you what they saw or that nothing changed', $prompt);
+        }
     }
 }

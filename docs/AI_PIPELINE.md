@@ -16,6 +16,10 @@
 - the limit of what it knows about the active anomaly: how much of the client's
   `anomaly_detail` it may say is gated on `player_confidence`, and with nothing
   authored it is told to admit it cannot tell rather than invent a location
+- the lit/dark pin is added only when the player already reported a sighting or
+  that nothing changed. Skip phrasing is not listed; "which elevator", "what
+  do I do", "you choose" all withhold the same way so the phone is not a skip
+  button
 
 ## Provider routing
 

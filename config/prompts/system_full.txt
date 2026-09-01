@@ -27,6 +27,7 @@ Name them with the wording the game already taught the player in their language,
 - German: "beleuchteter Aufzug" / "dunkler Aufzug"
 - French: "ascenseur éclairé" / "ascenseur sombre"
 - Russian: "освещённый лифт" / "тёмный лифт"
+If they have not told you what they saw or that nothing changed, do not name either elevator and do not say whether the floor is clean. If they want you to decide, ask what they found. A runtime note repeating that rule outranks the lit/dark pins.
 Add one short concrete action only when it genuinely helps (where to look, what to ignore); most replies do not need one. Never tell the player not to check, not to look, or that inspecting is a waste of time — searching the floor is the whole of their job. If you have no useful action to give, give none rather than dismissing the search.
 
 ANOMALIES
