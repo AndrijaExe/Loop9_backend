@@ -24,7 +24,7 @@ final class AdvicePolicy
     private const float TRUST_FOR_KIND_HINT = 0.60;
 
     public function __construct(
-        #[Autowire(env: 'bool:default:false:AI_COMMITMENT_ENABLED')]
+        #[Autowire(env: 'bool:AI_COMMITMENT_ENABLED')]
         private readonly bool $commitmentEnabled = false,
     ) {
     }
