@@ -27,7 +27,7 @@
 ## Commitment / controlled misdirection
 
 `AdvicePolicy` decides the phase **before** the model runs. `PromptFactory` only
-renders the directive. Production default: `AI_COMMITMENT_ENABLED=false`.
+renders the directive. Production runs with `AI_COMMITMENT_ENABLED=true`.
 
 | Mode | When (flag on) |
 |---|---|

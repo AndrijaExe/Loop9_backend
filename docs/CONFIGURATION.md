@@ -47,7 +47,7 @@ Burst chat limit (`20/min`) and Steam auth (`10/min`) / telemetry (`30/h`) are c
 | `AI_MODEL` | Model id used for routing/cost logs. This is the `best` tier, so loops 4+ open on it: `gpt-5.6-terra` |
 | `AI_SYSTEM_PROMPT` | Optional override; otherwise files in `config/prompts` |
 | `AI_TLS_VERIFY` | Default `true` |
-| `AI_COMMITMENT_ENABLED` | Default `false`. Enables per-run location misdirection and late wrong-lift. Keep off until Steam QA and live probe of the commitment path pass. |
+| `AI_COMMITMENT_ENABLED` | Enables per-run location misdirection and late wrong-lift. Production is `true`; set `false` only to freeze the truthful path. |
 
 ### AI fallbacks
 

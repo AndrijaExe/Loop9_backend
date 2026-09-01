@@ -157,7 +157,7 @@ Notes:
 - `decoy_zone` is one authored inactive place, different from every active zone.
   The backend never invents a room; without a decoy it cannot plant a wrong location.
 - `advice_state` is structured per-run memory from the client (never raw chat).
-  It is ignored for deception while `AI_COMMITMENT_ENABLED=false`.
+  Deception phases run only while `AI_COMMITMENT_ENABLED=true`.
 
 Response `200`:
 
