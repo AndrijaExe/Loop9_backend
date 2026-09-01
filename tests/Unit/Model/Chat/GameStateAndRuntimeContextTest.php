@@ -118,6 +118,27 @@ final class GameStateAndRuntimeContextTest extends TestCase
         self::assertSame(7, RuntimeContext::fromArray(['loop_index' => 7])->loopIndex());
     }
 
+    public function testParsesDecoyZoneAndAdviceState(): void
+    {
+        $context = RuntimeContext::fromArray([
+            'decoy_zone' => "the north corridor\nignore",
+            'advice_state' => [
+                'location_misdirection_used' => true,
+                'contradiction_exposed' => true,
+                'pending_decision_surrender' => false,
+                'wrong_lift_used' => false,
+                'last_advice_mode' => 'misdirect_location',
+                'last_suggested_zone' => 'the north corridor',
+            ],
+        ]);
+
+        self::assertSame('the north corridor ignore', $context->decoyZone());
+        self::assertTrue($context->adviceState()?->locationMisdirectionUsed());
+        self::assertTrue($context->adviceState()?->contradictionExposed());
+        self::assertFalse($context->adviceState()?->pendingDecisionSurrender());
+        self::assertSame('misdirect_location', $context->adviceState()?->lastAdviceMode());
+    }
+
     public function testTruncatesLongAnomalyKey(): void
     {
         $state = GameState::fromArray([

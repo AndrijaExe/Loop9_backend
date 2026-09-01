@@ -20,6 +20,29 @@
   that nothing changed. Skip phrasing is not listed; "which elevator", "what
   do I do", "you choose" all withhold the same way so the phone is not a skip
   button
+- when the verdict is withheld, the gateway rejects a formatted reply that
+  still contains the localized lit/dark elevator name and spends at most one
+  fallback attempt, just like format recovery
+
+## Commitment / controlled misdirection
+
+`AdvicePolicy` decides the phase **before** the model runs. `PromptFactory` only
+renders the directive. Production default: `AI_COMMITMENT_ENABLED=false`.
+
+| Mode | When (flag on) |
+|---|---|
+| `withhold` | No finding / offtopic — no lift name |
+| `accurate_hint` / `accurate_lift` | Normal truthful path |
+| `misdirect_location` | Once from loop 5+, moderate+ dependency, valid `decoy_zone`, not Pursuer/Phantom |
+| `wrong_lift` | Once from loop 7+, after location lie + later `SUSPICION=1` + prior surrender + high dependency; forces dark on an active non-Pursuer anomaly |
+
+Gateway checks: withheld replies must not leak a lift name; forced `wrong_lift`
+must include the expected localized dark elevator wording (one fallback try).
+The JSON response may include an `advice` object (`mode`, `lift`,
+`suggested_zone`, `commitment_id`) authored by the server.
+
+Per-run memory lives only in the Unreal client (`FDragojloCommitmentState`);
+cleared on `ResetRunState`, never saved to Cloud or backend storage.
 
 ## Provider routing
 

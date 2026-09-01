@@ -17,6 +17,8 @@ final class RuntimeContext
         private readonly int $loopIndex = self::MIN_LOOP_INDEX,
         private readonly bool $offtopic = false,
         private readonly ?AnomalyDetail $anomalyDetail = null,
+        private readonly ?string $decoyZone = null,
+        private readonly ?AdviceState $adviceState = null,
     ) {
     }
 
@@ -59,6 +61,16 @@ final class RuntimeContext
             $anomalyDetail = AnomalyDetail::fromArray($raw['anomaly_detail']);
         }
 
+        $decoyZone = null;
+        if (isset($raw['decoy_zone'])) {
+            $decoyZone = AnomalyDetail::fromArray(['zone' => $raw['decoy_zone']])?->zone();
+        }
+
+        $adviceState = null;
+        if (isset($raw['advice_state']) && is_array($raw['advice_state'])) {
+            $adviceState = AdviceState::fromArray($raw['advice_state']);
+        }
+
         return new self(
             language: $language,
             aiStability: $stability,
@@ -67,6 +79,8 @@ final class RuntimeContext
             loopIndex: $loopIndex,
             offtopic: $offtopic,
             anomalyDetail: $anomalyDetail,
+            decoyZone: $decoyZone,
+            adviceState: $adviceState,
         );
     }
 
@@ -93,6 +107,16 @@ final class RuntimeContext
     public function anomalyDetail(): ?AnomalyDetail
     {
         return $this->anomalyDetail;
+    }
+
+    public function decoyZone(): ?string
+    {
+        return $this->decoyZone;
+    }
+
+    public function adviceState(): ?AdviceState
+    {
+        return $this->adviceState;
     }
 
     public function loopIndex(): int

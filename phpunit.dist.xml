@@ -16,6 +16,7 @@
         <server name="APP_ENV" value="test" force="true" />
         <server name="SHELL_VERBOSITY" value="-1" />
         <env name="KERNEL_CLASS" value="App\Kernel" />
+        <env name="AI_COMMITMENT_ENABLED" value="false" />
     </php>
 
     <testsuites>

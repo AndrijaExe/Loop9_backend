@@ -157,6 +157,67 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
         );
     }
 
+    public function testRetriesWhenAWithheldReplyLeaksAnElevatorName(): void
+    {
+        $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
+        $http->expects(self::exactly(2))
+            ->method('chatCompletion')
+            ->willReturn([
+                'statusCode' => 200,
+                'data' => [],
+                'latencyMs' => 12.0,
+                'promptTokens' => 10,
+                'completionTokens' => 8,
+            ]);
+        $http->method('extractContent')->willReturnOnConsecutiveCalls(
+            'Idi u osvetljeni lift.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=1',
+            'Šta si našao na spratu?[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=1',
+        );
+
+        $gateway = $this->makeGateway($http, $this->catalogWithFallback());
+
+        self::assertSame(
+            'Šta si našao na spratu?[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=1',
+            $gateway->ask(
+                'Reci mi šta da radim.',
+                RuntimeContext::fromArray([
+                    'loop_index' => 3,
+                    'language' => 'sr',
+                    'state' => ['anomaly_key' => 'HideAnomaly'],
+                ]),
+            )->content(),
+        );
+    }
+
+    public function testAllowsElevatorNameAfterThePlayerReportsAFinding(): void
+    {
+        $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
+        $http->expects(self::once())->method('chatCompletion')->willReturn([
+            'statusCode' => 200,
+            'data' => [],
+            'latencyMs' => 8.0,
+            'promptTokens' => 10,
+            'completionTokens' => 8,
+        ]);
+        $http->method('extractContent')->willReturn(
+            'Idi u osvetljeni lift.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0'
+        );
+
+        $gateway = $this->makeGateway($http, $this->catalogPrimaryOnly());
+
+        self::assertSame(
+            'Idi u osvetljeni lift.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0',
+            $gateway->ask(
+                'Stolica je pomerena.',
+                RuntimeContext::fromArray([
+                    'loop_index' => 3,
+                    'language' => 'sr',
+                    'state' => ['anomaly_key' => 'MoveAnomaly'],
+                ]),
+            )->content(),
+        );
+    }
+
     public function testStopsAfterSecondInvalidFormat(): void
     {
         $http = $this->createMock(OpenAiCompatibleHttpClientInterface::class);
@@ -548,7 +609,11 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
         return new OpenAiCompatibleAiChatGateway(
             providerCatalog: $catalog,
             routingPolicy: new ProviderRoutingPolicy(),
-            promptFactory: new PromptFactory($projectDir . '/config/prompts', ''),
+            promptFactory: new PromptFactory(
+                $projectDir . '/config/prompts',
+                new \App\Model\Chat\AdvicePolicy(false),
+                '',
+            ),
             httpClient: $http,
             replyFormatValidator: new AssistantReplyFormatValidator(),
             costEstimator: new CostEstimator(),

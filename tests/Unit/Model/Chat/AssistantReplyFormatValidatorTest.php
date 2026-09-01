@@ -85,6 +85,36 @@ final class AssistantReplyFormatValidatorTest extends TestCase
         );
     }
 
+    #[DataProvider('localizedElevatorNames')]
+    public function testDetectsLocalizedElevatorNamesInWithheldReplies(string $reply): void
+    {
+        self::assertTrue($this->validator->containsLocalizedElevatorName($reply));
+    }
+
+    /**
+     * @return iterable<string, array{0: string}>
+     */
+    public static function localizedElevatorNames(): iterable
+    {
+        yield 'English lit' => ['Take the lit elevator.'];
+        yield 'English dark' => ['Use the dark elevator.'];
+        yield 'Serbian inflected lit' => ['Idi ka osvetljenom liftu.'];
+        yield 'Serbian inflected dark' => ['Uđi u mračni lift.'];
+        yield 'German lit' => ['Nimm den beleuchteten Aufzug.'];
+        yield 'German dark' => ['Geh zum dunklen Aufzug.'];
+        yield 'French lit' => ['Prends l’ascenseur éclairé.'];
+        yield 'French dark' => ['Va vers l’ascenseur sombre.'];
+        yield 'Russian lit' => ['Иди к освещённому лифту.'];
+        yield 'Russian dark' => ['Выбирай тёмный лифт.'];
+    }
+
+    public function testDoesNotTreatOrdinarySearchGuidanceAsAnElevatorVerdict(): void
+    {
+        self::assertFalse($this->validator->containsLocalizedElevatorName(
+            'Check the dark archive room and tell me what moved.'
+        ));
+    }
+
     /**
      * A silent fall back to 0 would drop every dependency diagnosis the moment a
      * model drifted, and the bonded endings would never fire.

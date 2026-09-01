@@ -35,7 +35,9 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
 
     public function ask(string $playerMessage, RuntimeContext $context): Message
     {
-        $messages = $this->promptFactory->buildMessages($playerMessage, $context);
+        $directive = $this->promptFactory->resolveAdviceDirective($playerMessage, $context);
+        $withholdElevatorVerdict = $directive->withholdsElevator();
+        $messages = $this->promptFactory->buildMessages($playerMessage, $context, $directive);
         $providers = $this->routingPolicy->orderByLoop(
             $this->providerCatalog->configuredProviders(),
             $context->loopIndex()
@@ -108,6 +110,24 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
 
                 $rawContent = $this->httpClient->extractContent($response['data']);
                 $validatedContent = $this->replyFormatValidator->normalizeAndValidate($rawContent);
+                $validationFailure = null;
+
+                if ($validatedContent !== null
+                    && $withholdElevatorVerdict
+                    && $this->replyFormatValidator->containsLocalizedElevatorName($validatedContent)) {
+                    $validatedContent = null;
+                    $validationFailure = 'withheld_elevator_verdict';
+                }
+
+                if ($validatedContent !== null
+                    && $directive->requiresElevatorName()
+                    && !$this->replyFormatValidator->containsExpectedLiftAdvice(
+                        $validatedContent,
+                        $directive->lift(),
+                    )) {
+                    $validatedContent = null;
+                    $validationFailure = 'missing_required_lift';
+                }
 
                 if ($validatedContent === null) {
                     $canTryOneFallback = $attempt < $lastAllowedAttempt;
@@ -127,6 +147,7 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                         'maxTokens' => $maxTokens,
                         'latencyMs' => $response['latencyMs'],
                         'estimatedCostUsd' => $this->estimateCost($provider, $response),
+                        'validationFailure' => $validationFailure ?? 'invalid_format',
                         'willRetryOnce' => $canTryOneFallback,
                     ]);
 
@@ -152,6 +173,7 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                     'completionTokens' => $response['completionTokens'],
                     'estimatedCostUsd' => $this->estimateCost($provider, $response),
                     'formatValidated' => true,
+                    'adviceMode' => $directive->mode(),
                     'totalAiMs' => round((hrtime(true) - $startedAt) / 1_000_000, 2),
                 ]);
 
@@ -162,7 +184,7 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
                     $this->counters->increment(Event::AI_FALLBACK);
                 }
 
-                return new Message('assistant', $validatedContent);
+                return new Message('assistant', $validatedContent, $directive);
             } catch (\Throwable $exception) {
                 $lastException = $exception;
 

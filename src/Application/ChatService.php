@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Application;
 
 use App\Application\DTO\ChatResponseDTO;
+use App\Model\Chat\AdviceDirective;
 use App\Model\Chat\AiChatGateway;
 use App\Model\Chat\ContentSafetyGateway;
 use App\Model\Chat\Message;
@@ -56,6 +57,7 @@ final class ChatService
             role: $message->role(),
             message: $message->content(),
             createdAt: new \DateTimeImmutable(),
+            advice: $message->advice() ?? AdviceDirective::withhold(),
         );
     }
 }

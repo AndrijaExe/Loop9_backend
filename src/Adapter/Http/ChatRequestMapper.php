@@ -71,6 +71,8 @@ final class ChatRequestMapper
                 'state' => $payload['state'] ?? null,
                 'anomaly_context' => $payload['anomaly_context'] ?? null,
                 'anomaly_detail' => $payload['anomaly_detail'] ?? null,
+                'decoy_zone' => $payload['decoy_zone'] ?? null,
+                'advice_state' => $payload['advice_state'] ?? null,
                 'loop_index' => $payload['loop_index'] ?? null,
                 'offtopic' => $payload['offtopic'] ?? null,
             ]),

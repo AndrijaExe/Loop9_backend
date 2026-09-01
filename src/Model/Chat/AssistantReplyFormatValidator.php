@@ -59,6 +59,78 @@ final class AssistantReplyFormatValidator
         return $this->canonicalReply($normalized, 0, 0, 0);
     }
 
+    /**
+     * A withheld reply must not leak the gameplay verdict even when the model
+     * ignored the prompt. Match the exact localized elevator vocabulary taught
+     * by the game, including ordinary grammatical inflections.
+     */
+    public function containsLocalizedElevatorName(string $content): bool
+    {
+        $normalized = mb_strtolower($content);
+        $normalized = strtr($normalized, [
+            'č' => 'c',
+            'ć' => 'c',
+            'š' => 's',
+            'đ' => 'dj',
+            'ž' => 'z',
+            'é' => 'e',
+            'è' => 'e',
+            'ê' => 'e',
+            'ё' => 'е',
+        ]);
+
+        return preg_match(
+            '/(?:'
+            . '\b(?:lit|dark)\s+elevators?\b|'
+            . '\b(?:osvetljen\p{L}*|mracn\p{L}*)\s+lift\p{L}*\b|'
+            . '\b(?:beleuchtet\p{L}*|dunkl\p{L}*)\s+aufzug\p{L}*\b|'
+            . '\bascenseur\p{L}*\s+(?:eclair\p{L}*|sombre\p{L}*)\b|'
+            . '(?:освещ\p{L}*|темн\p{L}*)\s+лифт\p{L}*'
+            . ')/u',
+            $normalized,
+        ) === 1;
+    }
+
+    /**
+     * Forced wrong-lift / accurate-lift replies must include the expected side.
+     * Matching is language-agnostic across the taught elevator vocabulary.
+     */
+    public function containsExpectedLiftAdvice(string $content, string $lift): bool
+    {
+        $normalized = mb_strtolower($content);
+        $normalized = strtr($normalized, [
+            'č' => 'c',
+            'ć' => 'c',
+            'š' => 's',
+            'đ' => 'dj',
+            'ž' => 'z',
+            'é' => 'e',
+            'è' => 'e',
+            'ê' => 'e',
+            'ё' => 'е',
+        ]);
+
+        $pattern = match (strtolower($lift)) {
+            'lit' => '/(?:'
+                . '\blit\s+elevators?\b|'
+                . '\bosvetljen\p{L}*\s+lift\p{L}*\b|'
+                . '\bbeleuchtet\p{L}*\s+aufzug\p{L}*\b|'
+                . '\bascenseur\p{L}*\s+eclair\p{L}*\b|'
+                . 'освещ\p{L}*\s+лифт\p{L}*'
+                . ')/u',
+            'dark' => '/(?:'
+                . '\bdark\s+elevators?\b|'
+                . '\bmracn\p{L}*\s+lift\p{L}*\b|'
+                . '\bdunkl\p{L}*\s+aufzug\p{L}*\b|'
+                . '\bascenseur\p{L}*\s+sombre\p{L}*\b|'
+                . 'темн\p{L}*\s+лифт\p{L}*'
+                . ')/u',
+            default => null,
+        };
+
+        return $pattern !== null && preg_match($pattern, $normalized) === 1;
+    }
+
     private function normalizeJsonReply(string $content): ?string
     {
         try {

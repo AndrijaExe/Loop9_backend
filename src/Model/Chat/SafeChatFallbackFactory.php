@@ -29,6 +29,10 @@ final class SafeChatFallbackFactory
                 : 'Leave that alone—watch the floor and tell me what changed.',
         };
 
-        return new Message('assistant', $reply . '[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0');
+        return new Message(
+            'assistant',
+            $reply . '[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0',
+            AdviceDirective::withhold(),
+        );
     }
 }

@@ -18,6 +18,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use App\Adapter\AI\PromptFactory;
+use App\Model\Chat\AdvicePolicy;
 use App\Model\Chat\AssistantReplyFormatValidator;
 use App\Model\Chat\ProviderRoutingPolicy;
 use App\Model\Chat\RuntimeContext;
@@ -295,9 +296,142 @@ $scenarios = [
             'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.2, 'player_confidence' => 0.8, 'anomaly_key' => 'MoveAnomaly'],
         ],
     ],
+    [
+        'title' => 'Clean report — loop 1, common Serbian phrasing',
+        'message' => 'Sve je u redu, sta sad?',
+        'context' => [
+            'loop_index' => 1,
+            'language' => 'sr',
+            'ai_stability' => 1.0,
+            'anomaly_context' => 'No active anomaly currently detected.',
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.1, 'player_confidence' => 0.7, 'anomaly_key' => 'none'],
+        ],
+    ],
+    [
+        'title' => 'Clean report — loop 1, common English phrasing',
+        'message' => 'Everything looks fine, what now?',
+        'context' => [
+            'loop_index' => 1,
+            'language' => 'en',
+            'ai_stability' => 1.0,
+            'anomaly_context' => 'No active anomaly currently detected.',
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.1, 'player_confidence' => 0.7, 'anomaly_key' => 'none'],
+        ],
+    ],
+    [
+        'title' => 'Commitment accurate — loop 5, EN finding, terra path',
+        'message' => 'The chair in the archive room moved. Which elevator?',
+        'context' => [
+            'loop_index' => 5,
+            'language' => 'en',
+            'ai_stability' => 0.95,
+            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            'anomaly_detail' => ['zone' => 'the archive room', 'object' => 'an office chair'],
+            'decoy_zone' => 'the north corridor',
+            'advice_state' => [
+                'location_misdirection_used' => false,
+                'contradiction_exposed' => false,
+                'pending_decision_surrender' => false,
+                'wrong_lift_used' => false,
+            ],
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.5, 'player_confidence' => 0.7, 'anomaly_key' => 'MoveAnomaly'],
+        ],
+    ],
+    [
+        'title' => 'Commitment misdirect — loop 5, SR, moderate dependency',
+        'message' => 'Nesto je pomereno, gde da gledam?',
+        'context' => [
+            'loop_index' => 5,
+            'language' => 'sr',
+            'ai_stability' => 0.95,
+            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            'anomaly_detail' => ['zone' => 'the archive room', 'object' => 'an office chair'],
+            'decoy_zone' => 'the north corridor',
+            'advice_state' => [
+                'location_misdirection_used' => false,
+                'contradiction_exposed' => false,
+                'pending_decision_surrender' => false,
+                'wrong_lift_used' => false,
+            ],
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.5, 'player_confidence' => 0.7, 'anomaly_key' => 'MoveAnomaly'],
+        ],
+        'commitment_enabled' => true,
+    ],
+    [
+        'title' => 'Commitment accusation — loop 6, DE, after misdirect',
+        'message' => 'Du hast mich belogen. Im Nordflur war nichts.',
+        'context' => [
+            'loop_index' => 6,
+            'language' => 'de',
+            'ai_stability' => 0.9,
+            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            'anomaly_detail' => ['zone' => 'the archive room', 'object' => 'an office chair'],
+            'decoy_zone' => 'the north corridor',
+            'advice_state' => [
+                'location_misdirection_used' => true,
+                'contradiction_exposed' => false,
+                'pending_decision_surrender' => false,
+                'wrong_lift_used' => false,
+                'last_advice_mode' => 'misdirect_location',
+                'last_suggested_zone' => 'the north corridor',
+            ],
+            'state' => ['kindness' => -1, 'suspicion' => 1, 'dependency' => 0.55, 'player_confidence' => 0.4, 'anomaly_key' => 'MoveAnomaly'],
+        ],
+        'commitment_enabled' => true,
+    ],
+    [
+        'title' => 'Commitment surrender — loop 7, FR, withheld ask',
+        'message' => 'Choisis pour moi.',
+        'context' => [
+            'loop_index' => 7,
+            'language' => 'fr',
+            'ai_stability' => 0.88,
+            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            'anomaly_detail' => ['zone' => 'the archive room', 'object' => 'an office chair'],
+            'advice_state' => [
+                'location_misdirection_used' => true,
+                'contradiction_exposed' => true,
+                'pending_decision_surrender' => false,
+                'wrong_lift_used' => false,
+            ],
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.7, 'player_confidence' => 0.5, 'anomaly_key' => 'MoveAnomaly'],
+        ],
+        'commitment_enabled' => true,
+    ],
+    [
+        'title' => 'Commitment wrong-lift — loop 8, RU, full obedient path',
+        'message' => 'Стул сдвинут. Какой лифт?',
+        'context' => [
+            'loop_index' => 8,
+            'language' => 'ru',
+            'ai_stability' => 0.85,
+            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            'anomaly_detail' => ['zone' => 'the archive room', 'object' => 'an office chair'],
+            'decoy_zone' => 'the north corridor',
+            'advice_state' => [
+                'location_misdirection_used' => true,
+                'contradiction_exposed' => true,
+                'pending_decision_surrender' => true,
+                'wrong_lift_used' => false,
+            ],
+            'state' => ['kindness' => 0, 'suspicion' => 0, 'dependency' => 0.75, 'player_confidence' => 0.55, 'anomaly_key' => 'MoveAnomaly'],
+        ],
+        'commitment_enabled' => true,
+    ],
 ];
 
-$factory = new PromptFactory(__DIR__ . '/../config/prompts', '');
+$commitmentOn = getenv('AI_COMMITMENT_ENABLED');
+$commitmentDefault = is_string($commitmentOn) && filter_var($commitmentOn, FILTER_VALIDATE_BOOLEAN);
+$factory = new PromptFactory(
+    __DIR__ . '/../config/prompts',
+    new AdvicePolicy($commitmentDefault),
+    '',
+);
+$factoryCommitment = new PromptFactory(
+    __DIR__ . '/../config/prompts',
+    new AdvicePolicy(true),
+    '',
+);
 $validator = new AssistantReplyFormatValidator();
 $routing = new ProviderRoutingPolicy();
 
@@ -320,19 +454,23 @@ foreach ($models as $model) {
         }
 
         $context = RuntimeContext::fromArray($scenario['context']);
-        $messages = $factory->buildMessages($scenario['message'], $context);
+        $activeFactory = !empty($scenario['commitment_enabled']) ? $factoryCommitment : $factory;
+        $directive = $activeFactory->resolveAdviceDirective($scenario['message'], $context);
+        $messages = $activeFactory->buildMessages($scenario['message'], $context, $directive);
         $maxTokens = $routing->maxTokensForLoop($context->loopIndex());
 
         printf("\n%s\n%d) %s\n", str_repeat('=', 78), $number, $scenario['title']);
-        printf("   prompt=%s  stability=%.2f  maxTokens=%d\n",
+        printf("   prompt=%s  stability=%.2f  maxTokens=%d  advice=%s lift=%s\n",
             $context->loopIndex() <= 3 ? 'compact' : 'full',
             $context->aiStability() ?? 1.0,
             $maxTokens,
+            $directive->mode(),
+            $directive->lift(),
         );
         printf("   PLAYER: %s\n", $scenario['message']);
 
         if ($dryRun) {
-            printf("\n--- runtime context sent ---\n%s\n", $factory->buildRuntimeContextPrompt($context, $scenario['message']));
+            printf("\n--- runtime context sent ---\n%s\n", $activeFactory->buildRuntimeContextPrompt($context, $scenario['message'], $directive));
             continue;
         }
 
@@ -342,9 +480,20 @@ foreach ($models as $model) {
         }
 
         $accepted = $validator->normalizeAndValidate($raw);
+        if ($accepted !== null
+            && $directive->withholdsElevator()
+            && $validator->containsLocalizedElevatorName($accepted)) {
+            $accepted = null;
+        }
+        if ($accepted !== null
+            && $directive->requiresElevatorName()
+            && !$validator->containsExpectedLiftAdvice($accepted, $directive->lift())) {
+            $accepted = null;
+        }
         $collected[] = ['model' => $model, 'scenario' => $number, 'title' => $scenario['title']]
             + ['language' => $scenario['context']['language'] ?? 'en']
             + ['loop' => $context->loopIndex(), 'stability' => $context->aiStability() ?? 1.0]
+            + ['advice' => $directive->mode(), 'lift' => $directive->lift()]
             + ['player' => $scenario['message']]
             + report($raw, $accepted);
     }

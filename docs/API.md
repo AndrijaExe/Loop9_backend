@@ -126,6 +126,16 @@ Request body (canonical fields):
   "anomaly_detail": {
     "zone": "the north corridor",
     "object": "a ceiling light panel"
+  },
+  "decoy_zone": "the archive room",
+  "advice_state": {
+    "location_misdirection_used": false,
+    "contradiction_exposed": false,
+    "pending_decision_surrender": false,
+    "wrong_lift_used": false,
+    "followed_last_lift_advice": false,
+    "last_advice_mode": "none",
+    "last_lift_advice": "none"
   }
 }
 ```
@@ -136,12 +146,18 @@ Notes:
 - `state.kindness` / `state.suspicion` are discrete `-1|0|1` values from the Unreal client.
 - `loop_index` shapes urgency and provider/token policy.
 - `state.anomaly_key` is `"none"` (or absent) on a clean floor. Any other value
-  means an anomaly is active and pins the recommendation to the lit elevator.
+  means an anomaly is active. The recommendation is pinned to the lit elevator
+  only after the player message reports a finding; a bare request to decide
+  receives a question or search hint instead of a lift verdict.
 - `anomaly_detail` is optional and lets the AI point at the anomaly without
   solving the search: `zone` is a coarse landmark, `object` a category noun, both
   in English and neither an actor name. How much of it reaches the reply depends
   on `state.player_confidence`. Omit the object for placeless anomalies such as a
   phantom chat message; omit the whole field to leave the prompt unchanged.
+- `decoy_zone` is one authored inactive place, different from every active zone.
+  The backend never invents a room; without a decoy it cannot plant a wrong location.
+- `advice_state` is structured per-run memory from the client (never raw chat).
+  It is ignored for deception while `AI_COMMITMENT_ENABLED=false`.
 
 Response `200`:
 
@@ -149,9 +165,19 @@ Response `200`:
 {
   "role": "assistant",
   "message": "Check the hallway light, then take the lit elevator.[STATE]KINDNESS=0;SUSPICION=0;DEPENDENCY=0",
-  "createdAt": "2026-04-23T14:21:17+00:00"
+  "createdAt": "2026-04-23T14:21:17+00:00",
+  "advice": {
+    "mode": "accurate_hint",
+    "lift": "lit",
+    "suggested_zone": "the north corridor",
+    "commitment_id": "a1b2c3d4e5f60718"
+  }
 }
 ```
+
+`advice` is optional for older clients. When present it is **server-authored** from
+`AdvicePolicy` (not NLP over the reply text). Modes: `withhold`, `accurate_hint`,
+`accurate_lift`, `misdirect_location`, `wrong_lift`. `lift` is `none|lit|dark`.
 
 Assistant messages must include a trailing state tag consumed by the game client.
 

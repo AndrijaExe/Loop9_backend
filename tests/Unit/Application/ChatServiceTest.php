@@ -35,6 +35,8 @@ final class ChatServiceTest extends TestCase
         self::assertSame('assistant', $response->toArray()['role']);
         self::assertSame('Go dark.[STATE]KINDNESS=0;SUSPICION=0', $response->toArray()['message']);
         self::assertArrayHasKey('createdAt', $response->toArray());
+        self::assertArrayHasKey('advice', $response->toArray());
+        self::assertSame('withhold', $response->toArray()['advice']['mode']);
     }
 
     public function testRejectsEmptyMessage(): void

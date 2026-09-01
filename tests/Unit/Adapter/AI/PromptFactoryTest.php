@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Adapter\AI;
 
+use App\Model\Chat\AdvicePolicy;
 use App\Model\Chat\RuntimeContext;
 use App\Adapter\AI\PromptFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -16,7 +17,11 @@ final class PromptFactoryTest extends TestCase
     protected function setUp(): void
     {
         $projectDir = dirname(__DIR__, 4);
-        $this->factory = new PromptFactory($projectDir . '/config/prompts', '');
+        $this->factory = new PromptFactory(
+            $projectDir . '/config/prompts',
+            new AdvicePolicy(false),
+            '',
+        );
     }
 
     public function testPromptsRequireEvidenceBasedGuidanceAndExplicitStateRubric(): void
@@ -160,6 +165,26 @@ final class PromptFactoryTest extends TestCase
             $this->factory->buildRuntimeContextPrompt($context, 'Svetlo mi trepti.'),
             $this->factory->buildRuntimeContextPrompt($context, 'Svetlo mi trepti.'),
         );
+    }
+
+    public function testWarmAddressIsPinnedToTheReplyLanguage(): void
+    {
+        $context = RuntimeContext::fromArray(['loop_index' => 4, 'language' => 'en']);
+
+        for ($i = 0; $i < 100; ++$i) {
+            $prompt = $this->factory->buildRuntimeContextPrompt($context, 'address ' . $i);
+            if (!str_contains($prompt, 'You may use a warm form of address')) {
+                continue;
+            }
+
+            self::assertStringContainsString('reply language is English', $prompt);
+            self::assertStringContainsString('only allowed form is "son"', $prompt);
+            self::assertStringContainsString('Do not use a form from another language', $prompt);
+
+            return;
+        }
+
+        self::fail('Expected at least one message to permit a warm address.');
     }
 
     /**
@@ -466,6 +491,54 @@ final class PromptFactoryTest extends TestCase
 
         self::assertStringContainsString('guide the player toward the dark elevator', $prompt);
         self::assertStringNotContainsString('has not reported what they saw', $prompt);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function commonCleanReportProvider(): array
+    {
+        return [
+            'Serbian in order' => ['Sve je u redu.'],
+            'Serbian nothing strange' => ['Ništa nije čudno.'],
+            'English looks fine' => ['Everything looks fine.'],
+            'English all good' => ['All good here.'],
+            'German in order' => ['Alles ist in Ordnung.'],
+            'French normal' => ['Tout est normal.'],
+            'Russian in order' => ['Всё в порядке.'],
+        ];
+    }
+
+    #[DataProvider('commonCleanReportProvider')]
+    public function testCommonCleanReportsCountAsFindings(string $message): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(
+            RuntimeContext::fromArray([
+                'loop_index' => 1,
+                'anomaly_context' => 'No active anomaly currently detected.',
+                'state' => ['anomaly_key' => 'none'],
+            ]),
+            $message,
+        );
+
+        self::assertStringContainsString('guide the player toward the dark elevator', $prompt);
+        self::assertStringNotContainsString('has not reported what they saw', $prompt);
+    }
+
+    public function testOfftopicMessageNeverUnlocksTheElevatorVerdict(): void
+    {
+        $prompt = $this->factory->buildRuntimeContextPrompt(
+            RuntimeContext::fromArray([
+                'loop_index' => 5,
+                'offtopic' => true,
+                'anomaly_context' => 'Active anomaly types: AudioAnomaly.',
+                'state' => ['anomaly_key' => 'AudioAnomaly'],
+            ]),
+            'I heard a good joke today.',
+        );
+
+        self::assertStringContainsString('has not reported what they saw', $prompt);
+        self::assertStringNotContainsString('only correct recommendation is the lit elevator', $prompt);
     }
 
     public function testElevatorAskWithholdBeatsMisleadingGuidance(): void
