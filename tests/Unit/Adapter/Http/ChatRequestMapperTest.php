@@ -84,6 +84,60 @@ final class ChatRequestMapperTest extends TestCase
         self::assertSame('a ceiling light panel', $mapped['context']->anomalyDetail()?->object());
     }
 
+    public function testCarriesOnlyExplicitlyAllowedObservationSnapshotIntoContext(): void
+    {
+        $mapped = (new ChatRequestMapper())->map(Request::create(
+            '/api/chat',
+            'POST',
+            content: json_encode([
+                'message' => 'hello',
+                'observation_snapshot' => [
+                    'current_zone' => 'archive',
+                    'events' => [['type' => 'door_opened', 'zone' => 'archive']],
+                ],
+                'raw_chat_history' => ['must not enter runtime context'],
+            ], JSON_THROW_ON_ERROR),
+        ));
+
+        self::assertSame(
+            'archive',
+            $mapped['context']->observationSnapshot()?->toPromptArray()['current_zone'],
+        );
+        self::assertFalse(method_exists($mapped['context'], 'rawChatHistory'));
+    }
+
+    public function testRejectsObservationSnapshotOverEncodedByteLimit(): void
+    {
+        $this->expectException(BadRequestHttpException::class);
+        $this->expectExceptionMessage('Field "observation_snapshot" must encode to at most 2048 bytes.');
+
+        (new ChatRequestMapper())->map(Request::create(
+            '/api/chat',
+            'POST',
+            content: json_encode([
+                'message' => 'hello',
+                'observation_snapshot' => ['events' => str_repeat('x', 2100)],
+            ], JSON_THROW_ON_ERROR),
+        ));
+    }
+
+    public function testRejectsObservationSnapshotListInsteadOfObject(): void
+    {
+        $this->expectException(BadRequestHttpException::class);
+        $this->expectExceptionMessage('Field "observation_snapshot" must be an object.');
+
+        (new ChatRequestMapper())->map(Request::create(
+            '/api/chat',
+            'POST',
+            content: json_encode([
+                'message' => 'hello',
+                'observation_snapshot' => [
+                    ['events' => []],
+                ],
+            ], JSON_THROW_ON_ERROR),
+        ));
+    }
+
     public function testRejectsDeeplyNestedJson(): void
     {
         $this->expectException(BadRequestHttpException::class);

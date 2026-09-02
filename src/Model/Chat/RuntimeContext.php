@@ -19,6 +19,7 @@ final class RuntimeContext
         private readonly ?AnomalyDetail $anomalyDetail = null,
         private readonly ?string $decoyZone = null,
         private readonly ?AdviceState $adviceState = null,
+        private readonly ?ObservationSnapshot $observationSnapshot = null,
     ) {
     }
 
@@ -71,6 +72,11 @@ final class RuntimeContext
             $adviceState = AdviceState::fromArray($raw['advice_state']);
         }
 
+        $observationSnapshot = null;
+        if (isset($raw['observation_snapshot']) && is_array($raw['observation_snapshot'])) {
+            $observationSnapshot = ObservationSnapshot::fromArray($raw['observation_snapshot']);
+        }
+
         return new self(
             language: $language,
             aiStability: $stability,
@@ -81,6 +87,7 @@ final class RuntimeContext
             anomalyDetail: $anomalyDetail,
             decoyZone: $decoyZone,
             adviceState: $adviceState,
+            observationSnapshot: $observationSnapshot,
         );
     }
 
@@ -117,6 +124,11 @@ final class RuntimeContext
     public function adviceState(): ?AdviceState
     {
         return $this->adviceState;
+    }
+
+    public function observationSnapshot(): ?ObservationSnapshot
+    {
+        return $this->observationSnapshot;
     }
 
     public function loopIndex(): int

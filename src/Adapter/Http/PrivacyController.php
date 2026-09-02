@@ -50,8 +50,10 @@ final class PrivacyController
         processed to verify that a request comes from a Steam user. The ticket is used for verification
         and is not stored by Loop 9. A signed session token normally expires within 12 hours.</li>
         <li><strong>AI conversations:</strong> the message you type, preferred language, and limited
-        game-state context are processed to generate Dragojlo's reply. Loop 9 does not maintain a
-        conversation-history database and does not write chat text to application logs.</li>
+        game-state context are processed to generate Dragojlo's reply. This context may include a
+        bounded list of recent actions such as entering an area, inspecting an object, using a door,
+        or toggling the flashlight; it excludes coordinates and movement paths. Loop 9 does not
+        maintain a conversation-history database and does not write chat text to application logs.</li>
         <li><strong>Safety checks:</strong> messages are scanned locally for personal data
         (email/phone-like text) and requests to reproduce copyrighted works, then checked
         with a third-party moderation API for illegal and adult-sexual categories.
@@ -61,8 +63,10 @@ final class PrivacyController
         are processed for security, abuse prevention, reliability, and cost control. Infrastructure
         providers may also process network addresses in their own access logs.</li>
         <li><strong>Anonymous run telemetry:</strong> ending type, reset count, AI interaction count,
-        and game build version may be recorded for balancing and reliability analysis. This telemetry
-        does not include chat content.</li>
+        game build version, and aggregate AI-advice outcomes (whether a suggested area was checked,
+        time-to-check, contradiction state, and lift-advice/follow counts) may be recorded for balancing
+        and reliability analysis. This telemetry does not include chat content, coordinates, movement
+        paths, or area names.</li>
         <li><strong>Steam Cloud:</strong> if enabled, Steam may synchronize local progression and
         settings files such as <code>Game.ini</code> and <code>GameUserSettings.ini</code>.</li>
     </ul>

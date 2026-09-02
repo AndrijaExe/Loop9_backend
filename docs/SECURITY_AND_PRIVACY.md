@@ -38,6 +38,7 @@ you before they hit the cap. The mark is a hash, the same as presence.
 | Data | Handling |
 |---|---|
 | Chat messages | Processed in memory for the request; not stored in a database |
+| Observation snapshots | Bounded enum events and sanitized authored IDs, processed in memory for the request; no raw chat, coordinates, actor names, anomaly keys, commitment IDs, or relationship floats |
 | Steam tickets / session tokens / API keys | Never logged |
 | Player ids in logs | Prefer hashed / derived identifiers |
 | Telemetry | Structured log only |

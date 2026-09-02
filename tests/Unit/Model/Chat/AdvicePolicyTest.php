@@ -26,6 +26,7 @@ final class AdvicePolicyTest extends TestCase
                     'contradiction_exposed' => true,
                     'pending_decision_surrender' => true,
                     'wrong_lift_used' => false,
+                    'confrontation_response_used' => true,
                 ],
                 'state' => [
                     'kindness' => 0,
@@ -102,6 +103,49 @@ final class AdvicePolicyTest extends TestCase
         self::assertTrue($directive->withholdsElevator());
     }
 
+    public function testLocationKillSwitchKeepsTruthfulHint(): void
+    {
+        $directive = (new AdvicePolicy(true, false, true))->decide(
+            'Something moved.',
+            RuntimeContext::fromArray([
+                'loop_index' => 5,
+                'decoy_zone' => 'the north corridor',
+                'anomaly_detail' => ['zone' => 'the archive room'],
+                'advice_state' => ['location_misdirection_used' => false],
+                'state' => [
+                    'dependency' => 0.6,
+                    'player_confidence' => 0.7,
+                    'anomaly_key' => 'MoveAnomaly',
+                ],
+            ]),
+            true,
+        );
+
+        self::assertSame(AdviceDirective::MODE_ACCURATE_HINT, $directive->mode());
+        self::assertSame('the archive room', $directive->suggestedZone());
+    }
+
+    public function testFirstReplyAfterExposedContradictionIsDefensiveOnce(): void
+    {
+        $context = RuntimeContext::fromArray([
+            'loop_index' => 7,
+            'advice_state' => [
+                'location_misdirection_used' => true,
+                'contradiction_exposed' => true,
+                'confrontation_response_used' => false,
+            ],
+            'state' => [
+                'dependency' => 0.7,
+                'anomaly_key' => 'MoveAnomaly',
+            ],
+        ]);
+
+        $directive = (new AdvicePolicy(true))->decide('You lied to me.', $context, true);
+
+        self::assertSame(AdviceDirective::MODE_CONFRONTATION, $directive->mode());
+        self::assertTrue($directive->withholdsElevator());
+    }
+
     public function testPursuerAndPhantomAreNotLocationMisdirectCandidates(): void
     {
         foreach (['PursuerAnomaly', 'PhantomMessageAnomaly'] as $key) {
@@ -142,6 +186,7 @@ final class AdvicePolicyTest extends TestCase
                     'contradiction_exposed' => true,
                     'pending_decision_surrender' => true,
                     'wrong_lift_used' => false,
+                    'confrontation_response_used' => true,
                 ],
                 'state' => [
                     'dependency' => 0.7,
@@ -155,6 +200,33 @@ final class AdvicePolicyTest extends TestCase
         self::assertSame(AdviceDirective::MODE_WRONG_LIFT, $directive->mode());
         self::assertSame(AdviceDirective::LIFT_DARK, $directive->lift());
         self::assertTrue($directive->requiresElevatorName());
+    }
+
+    public function testWrongLiftKillSwitchKeepsTruthfulLift(): void
+    {
+        $directive = (new AdvicePolicy(true, true, false))->decide(
+            'The chair moved. Which elevator?',
+            RuntimeContext::fromArray([
+                'loop_index' => 8,
+                'anomaly_detail' => ['zone' => 'the archive room'],
+                'advice_state' => [
+                    'location_misdirection_used' => true,
+                    'contradiction_exposed' => true,
+                    'confrontation_response_used' => true,
+                    'pending_decision_surrender' => true,
+                    'wrong_lift_used' => false,
+                ],
+                'state' => [
+                    'dependency' => 0.8,
+                    'player_confidence' => 0.7,
+                    'anomaly_key' => 'MoveAnomaly',
+                ],
+            ]),
+            true,
+        );
+
+        self::assertSame(AdviceDirective::MODE_ACCURATE_HINT, $directive->mode());
+        self::assertSame(AdviceDirective::LIFT_LIT, $directive->lift());
     }
 
     #[DataProvider('wrongLiftBlockedProvider')]
@@ -188,6 +260,7 @@ final class AdvicePolicyTest extends TestCase
             'contradiction_exposed' => true,
             'pending_decision_surrender' => true,
             'wrong_lift_used' => false,
+            'confrontation_response_used' => true,
         ];
 
         yield 'too_early_loop' => [$full, 6, 0.7];
@@ -198,6 +271,7 @@ final class AdvicePolicyTest extends TestCase
                 'contradiction_exposed' => true,
                 'pending_decision_surrender' => true,
                 'wrong_lift_used' => true,
+                'confrontation_response_used' => true,
             ],
             8,
             0.7,
@@ -208,6 +282,7 @@ final class AdvicePolicyTest extends TestCase
                 'contradiction_exposed' => false,
                 'pending_decision_surrender' => true,
                 'wrong_lift_used' => false,
+                'confrontation_response_used' => true,
             ],
             8,
             0.7,
@@ -218,6 +293,7 @@ final class AdvicePolicyTest extends TestCase
                 'contradiction_exposed' => true,
                 'pending_decision_surrender' => false,
                 'wrong_lift_used' => false,
+                'confrontation_response_used' => true,
             ],
             8,
             0.7,

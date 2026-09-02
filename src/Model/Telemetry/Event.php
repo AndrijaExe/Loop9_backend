@@ -30,6 +30,11 @@ final class Event
     public const AUTH_ISSUED = 'auth.issued';
     public const AUTH_REJECTED = 'auth.rejected';
     public const RUN_ENDED = 'run.ended';
+    public const RUN_LOCATION_MISDIRECTION = 'run.commitment.location_misdirection';
+    public const RUN_DECOY_VISITED = 'run.commitment.decoy_visited';
+    public const RUN_CONTRADICTION_EXPOSED = 'run.commitment.contradiction_exposed';
+    public const RUN_WRONG_LIFT_ADVISED = 'run.commitment.wrong_lift_advised';
+    public const RUN_WRONG_LIFT_FOLLOWED = 'run.commitment.wrong_lift_followed';
 
     /**
      * Endings are a closed set of six ids, so counting them by name cannot grow unbounded.

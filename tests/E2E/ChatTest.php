@@ -122,6 +122,33 @@ final class ChatTest extends WebTestCase
         self::assertStringContainsString('message', (string) ($payload['error']['message'] ?? ''));
     }
 
+    public function testRejectsOversizedObservationSnapshot(): void
+    {
+        $client = static::createClient();
+
+        $client->request(
+            'POST',
+            '/api/chat',
+            server: [
+                'CONTENT_TYPE' => 'application/json',
+                'HTTP_X_GAME_TOKEN' => $this->gameToken(),
+            ],
+            content: json_encode([
+                'message' => 'hello',
+                'player_id' => 'player-test',
+                'observation_snapshot' => ['events' => str_repeat('x', 2100)],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        self::assertResponseStatusCodeSame(400);
+        $payload = json_decode($client->getResponse()->getContent() ?: '', true);
+        self::assertIsArray($payload);
+        self::assertSame(
+            'Field "observation_snapshot" must encode to at most 2048 bytes.',
+            $payload['error']['message'] ?? null,
+        );
+    }
+
     public function testOptionsReturnsNoContent(): void
     {
         $client = static::createClient();

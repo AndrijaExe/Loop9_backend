@@ -72,10 +72,35 @@ final class RunTelemetryController
             'resets' => $payload['resets'],
             'aiMessages' => $payload['ai_messages'],
             'build' => $payload['build'],
+            'commitment' => [
+                'locationMisdirectionUsed' => $payload['location_misdirection_used'],
+                'visitedSuggestedDecoy' => $payload['visited_suggested_decoy'],
+                'contradictionExposed' => $payload['contradiction_exposed'],
+                'decoyVisitSeconds' => $payload['decoy_visit_seconds'],
+                'liftAdviceCount' => $payload['lift_advice_count'],
+                'followedLiftAdviceCount' => $payload['followed_lift_advice_count'],
+                'wrongLiftAdviceCount' => $payload['wrong_lift_advice_count'],
+                'followedWrongLiftAdviceCount' => $payload['followed_wrong_lift_advice_count'],
+            ],
         ]);
 
         $this->counters->increment(Event::RUN_ENDED);
         $this->counters->increment(Event::runEnding($payload['ending']));
+        if ($payload['location_misdirection_used']) {
+            $this->counters->increment(Event::RUN_LOCATION_MISDIRECTION);
+        }
+        if ($payload['visited_suggested_decoy']) {
+            $this->counters->increment(Event::RUN_DECOY_VISITED);
+        }
+        if ($payload['contradiction_exposed']) {
+            $this->counters->increment(Event::RUN_CONTRADICTION_EXPOSED);
+        }
+        if ($payload['wrong_lift_advice_count'] > 0) {
+            $this->counters->increment(Event::RUN_WRONG_LIFT_ADVISED);
+        }
+        if ($payload['followed_wrong_lift_advice_count'] > 0) {
+            $this->counters->increment(Event::RUN_WRONG_LIFT_FOLLOWED);
+        }
 
         if ($auth->playerId !== null) {
             $this->presence->seen($auth->playerId);
@@ -85,7 +110,20 @@ final class RunTelemetryController
     }
 
     /**
-     * @return array{ending: string, resets: int, ai_messages: int, build: ?string}
+     * @return array{
+     *   ending: string,
+     *   resets: int,
+     *   ai_messages: int,
+     *   build: ?string,
+     *   location_misdirection_used: bool,
+     *   visited_suggested_decoy: bool,
+     *   contradiction_exposed: bool,
+     *   decoy_visit_seconds: ?float,
+     *   lift_advice_count: int,
+     *   followed_lift_advice_count: int,
+     *   wrong_lift_advice_count: int,
+     *   followed_wrong_lift_advice_count: int
+     * }
      */
     private function parsePayload(Request $request): array
     {
@@ -116,6 +154,14 @@ final class RunTelemetryController
             'resets' => $this->clampCounter($data['resets'] ?? 0),
             'ai_messages' => $this->clampCounter($data['ai_messages'] ?? 0),
             'build' => $build,
+            'location_misdirection_used' => $this->boolean($data['location_misdirection_used'] ?? false),
+            'visited_suggested_decoy' => $this->boolean($data['visited_suggested_decoy'] ?? false),
+            'contradiction_exposed' => $this->boolean($data['contradiction_exposed'] ?? false),
+            'decoy_visit_seconds' => $this->nullableDuration($data['decoy_visit_seconds'] ?? null),
+            'lift_advice_count' => $this->clampCounter($data['lift_advice_count'] ?? 0),
+            'followed_lift_advice_count' => $this->clampCounter($data['followed_lift_advice_count'] ?? 0),
+            'wrong_lift_advice_count' => $this->clampCounter($data['wrong_lift_advice_count'] ?? 0),
+            'followed_wrong_lift_advice_count' => $this->clampCounter($data['followed_wrong_lift_advice_count'] ?? 0),
         ];
     }
 
@@ -126,5 +172,19 @@ final class RunTelemetryController
         }
 
         return max(0, min(self::MAX_COUNTER, $value));
+    }
+
+    private function boolean(mixed $value): bool
+    {
+        return is_bool($value) && $value;
+    }
+
+    private function nullableDuration(mixed $value): ?float
+    {
+        if (!is_int($value) && !is_float($value)) {
+            return null;
+        }
+
+        return max(0.0, min(86400.0, (float) $value));
     }
 }

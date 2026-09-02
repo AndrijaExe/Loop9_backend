@@ -134,8 +134,30 @@ Request body (canonical fields):
     "pending_decision_surrender": false,
     "wrong_lift_used": false,
     "followed_last_lift_advice": false,
+    "visited_suggested_decoy": false,
+    "confrontation_response_used": false,
     "last_advice_mode": "none",
     "last_lift_advice": "none"
+  },
+  "observation_snapshot": {
+    "current_zone": "archive",
+    "seconds_on_floor": 42,
+    "events": [
+      {
+        "type": "object_inspected",
+        "zone": "archive",
+        "subject": "office_chair",
+        "count": 1,
+        "age_seconds": 3
+      }
+    ],
+    "visited_zones": ["lobby", "archive"],
+    "run_summary": {
+      "floors_started": 3,
+      "ai_interactions": 2,
+      "elevator_decisions": 1,
+      "correct_decisions": 1
+    }
   }
 }
 ```
@@ -158,6 +180,16 @@ Notes:
   The backend never invents a room; without a decoy it cannot plant a wrong location.
 - `advice_state` is structured per-run memory from the client (never raw chat).
   Deception phases run only while `AI_COMMITMENT_ENABLED=true`.
+- `observation_snapshot` is optional and backward compatible. Its encoded JSON
+  must be at most 2048 bytes. It carries at most eight recent events and eight
+  visited zone IDs. Allowed event types are `zone_entered`, `object_inspected`,
+  `door_opened`, `door_closed`, `door_denied`, `flashlight_on`,
+  `flashlight_off`, `pursuer_observed`, `pursuer_caught`, and
+  `call_completed`; unknown types are discarded. Zone/subject IDs are capped at
+  48 characters and normalized to lowercase `a-z`, digits, `_`, or `-`
+  slugs (the official client emits at most 32 characters). It must never contain
+  raw chat, coordinates, actor names, anomaly keys, commitment IDs, or
+  relationship floats.
 
 Response `200`:
 
@@ -177,7 +209,8 @@ Response `200`:
 
 `advice` is optional for older clients. When present it is **server-authored** from
 `AdvicePolicy` (not NLP over the reply text). Modes: `withhold`, `accurate_hint`,
-`accurate_lift`, `misdirect_location`, `wrong_lift`. `lift` is `none|lit|dark`.
+`accurate_lift`, `misdirect_location`, `confrontation`, `wrong_lift`. `lift` is
+`none|lit|dark`.
 
 Assistant messages must include a trailing state tag consumed by the game client.
 
@@ -204,9 +237,20 @@ Request:
   "ending": "paranoid_survivor",
   "resets": 4,
   "ai_messages": 12,
-  "build": "1.0.0"
+  "build": "1.0.0",
+  "location_misdirection_used": true,
+  "visited_suggested_decoy": true,
+  "contradiction_exposed": true,
+  "decoy_visit_seconds": 8.5,
+  "lift_advice_count": 3,
+  "followed_lift_advice_count": 2,
+  "wrong_lift_advice_count": 1,
+  "followed_wrong_lift_advice_count": 1
 }
 ```
+
+Commitment fields are optional for older clients and default to false/zero.
+They are run-level aggregates only—no chat, coordinates, route, or zone name.
 
 Allowed `ending` values:
 

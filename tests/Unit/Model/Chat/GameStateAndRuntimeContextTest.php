@@ -127,6 +127,8 @@ final class GameStateAndRuntimeContextTest extends TestCase
                 'contradiction_exposed' => true,
                 'pending_decision_surrender' => false,
                 'wrong_lift_used' => false,
+                'visited_suggested_decoy' => true,
+                'confrontation_response_used' => true,
                 'last_advice_mode' => 'misdirect_location',
                 'last_suggested_zone' => 'the north corridor',
             ],
@@ -136,6 +138,8 @@ final class GameStateAndRuntimeContextTest extends TestCase
         self::assertTrue($context->adviceState()?->locationMisdirectionUsed());
         self::assertTrue($context->adviceState()?->contradictionExposed());
         self::assertFalse($context->adviceState()?->pendingDecisionSurrender());
+        self::assertTrue($context->adviceState()?->visitedSuggestedDecoy());
+        self::assertTrue($context->adviceState()?->confrontationResponseUsed());
         self::assertSame('misdirect_location', $context->adviceState()?->lastAdviceMode());
     }
 

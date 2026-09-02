@@ -48,6 +48,16 @@ Burst chat limit (`20/min`) and Steam auth (`10/min`) / telemetry (`30/h`) are c
 | `AI_SYSTEM_PROMPT` | Optional override; otherwise files in `config/prompts` |
 | `AI_TLS_VERIFY` | Default `true` |
 | `AI_COMMITMENT_ENABLED` | Enables per-run location misdirection and late wrong-lift. Production is `true`; set `false` only to freeze the truthful path. |
+| `AI_COMMITMENT_LOCATION_ENABLED` | Independent location-misdirection kill switch. |
+| `AI_COMMITMENT_WRONG_LIFT_ENABLED` | Independent late wrong-lift kill switch; turn this off first if ending balance shifts. |
+| `AI_OBSERVATION_CONTEXT_ENABLED` | Enables bounded observation narration in prompts. Default `false`; the request field remains accepted and parsed while disabled. |
+
+Render does not copy committed `.env` defaults into its Environment UI. Add
+these flags explicitly in Render when they must be visible/editable there.
+In particular, enabling observation narration in production requires setting
+`AI_OBSERVATION_CONTEXT_ENABLED=true` in Render and restarting/redeploying;
+editing local `.env` does not auto-sync. Render values override committed
+defaults.
 
 ### AI fallbacks
 

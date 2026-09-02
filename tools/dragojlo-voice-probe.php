@@ -380,6 +380,27 @@ $scenarios = [
         'commitment_enabled' => true,
     ],
     [
+        'title' => 'Commitment confrontation — loop 6, SR, contradiction exposed',
+        'message' => 'Pa zašto si me onda poslao na pogrešno mesto?',
+        'context' => [
+            'loop_index' => 6,
+            'language' => 'sr',
+            'ai_stability' => 0.9,
+            'anomaly_context' => 'Active anomaly types: MoveAnomaly.',
+            'anomaly_detail' => ['zone' => 'the archive room', 'object' => 'an office chair'],
+            'advice_state' => [
+                'location_misdirection_used' => true,
+                'visited_suggested_decoy' => true,
+                'contradiction_exposed' => true,
+                'confrontation_response_used' => false,
+                'pending_decision_surrender' => false,
+                'wrong_lift_used' => false,
+            ],
+            'state' => ['kindness' => -1, 'suspicion' => 1, 'dependency' => 0.55, 'player_confidence' => 0.4, 'anomaly_key' => 'MoveAnomaly'],
+        ],
+        'commitment_enabled' => true,
+    ],
+    [
         'title' => 'Commitment surrender — loop 7, FR, withheld ask',
         'message' => 'Choisis pour moi.',
         'context' => [
@@ -391,6 +412,7 @@ $scenarios = [
             'advice_state' => [
                 'location_misdirection_used' => true,
                 'contradiction_exposed' => true,
+                'confrontation_response_used' => true,
                 'pending_decision_surrender' => false,
                 'wrong_lift_used' => false,
             ],
@@ -411,6 +433,7 @@ $scenarios = [
             'advice_state' => [
                 'location_misdirection_used' => true,
                 'contradiction_exposed' => true,
+                'confrontation_response_used' => true,
                 'pending_decision_surrender' => true,
                 'wrong_lift_used' => false,
             ],

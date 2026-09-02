@@ -26,6 +26,10 @@ final class AdvicePolicy
     public function __construct(
         #[Autowire(env: 'bool:AI_COMMITMENT_ENABLED')]
         private readonly bool $commitmentEnabled = false,
+        #[Autowire(env: 'bool:AI_COMMITMENT_LOCATION_ENABLED')]
+        private readonly bool $locationMisdirectionEnabled = true,
+        #[Autowire(env: 'bool:AI_COMMITMENT_WRONG_LIFT_ENABLED')]
+        private readonly bool $wrongLiftEnabled = true,
     ) {
     }
 
@@ -39,6 +43,21 @@ final class AdvicePolicy
         $state = $context->state();
         $anomalyActive = $state !== null && $state->anomalyKey() !== null;
         $commitmentId = bin2hex(random_bytes(8));
+        $advice = $context->adviceState();
+
+        if ($this->commitmentEnabled
+            && $advice !== null
+            && $advice->locationMisdirectionUsed()
+            && $advice->contradictionExposed()
+            && !$advice->confrontationResponseUsed()) {
+            return new AdviceDirective(
+                mode: AdviceDirective::MODE_CONFRONTATION,
+                lift: AdviceDirective::LIFT_NONE,
+                commitmentId: $commitmentId,
+                allowMisleadingTone: true,
+                anomalyActive: $anomalyActive,
+            );
+        }
 
         if (!$playerReportedFinding || $context->isOfftopic()) {
             [$zone, $object] = $this->resolveAccurateHints($context->anomalyDetail(), $state);
@@ -53,7 +72,9 @@ final class AdvicePolicy
             );
         }
 
-        if ($this->commitmentEnabled && $this->shouldWrongLift($context, $anomalyActive)) {
+        if ($this->commitmentEnabled
+            && $this->wrongLiftEnabled
+            && $this->shouldWrongLift($context, $anomalyActive)) {
             return new AdviceDirective(
                 mode: AdviceDirective::MODE_WRONG_LIFT,
                 lift: AdviceDirective::LIFT_DARK,
@@ -65,7 +86,9 @@ final class AdvicePolicy
             );
         }
 
-        if ($this->commitmentEnabled && $this->shouldMisdirectLocation($context, $anomalyActive)) {
+        if ($this->commitmentEnabled
+            && $this->locationMisdirectionEnabled
+            && $this->shouldMisdirectLocation($context, $anomalyActive)) {
             return new AdviceDirective(
                 mode: AdviceDirective::MODE_MISDIRECT_LOCATION,
                 lift: AdviceDirective::LIFT_NONE,

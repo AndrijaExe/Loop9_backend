@@ -13,6 +13,7 @@ final class AdviceDirective
     public const MODE_WITHHOLD = 'withhold';
     public const MODE_ACCURATE_HINT = 'accurate_hint';
     public const MODE_MISDIRECT_LOCATION = 'misdirect_location';
+    public const MODE_CONFRONTATION = 'confrontation';
     public const MODE_WRONG_LIFT = 'wrong_lift';
     public const MODE_ACCURATE_LIFT = 'accurate_lift';
 

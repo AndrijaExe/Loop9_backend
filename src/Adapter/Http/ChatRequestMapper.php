@@ -13,6 +13,7 @@ final class ChatRequestMapper
     public const MAX_MESSAGE_LENGTH = 4000;
     public const MAX_LANGUAGE_LENGTH = 32;
     public const MAX_ANOMALY_CONTEXT_LENGTH = 1000;
+    public const MAX_OBSERVATION_SNAPSHOT_BYTES = 2048;
     public const MAX_JSON_DEPTH = 8;
 
     /**
@@ -63,6 +64,26 @@ final class ChatRequestMapper
             ));
         }
 
+        if (array_key_exists('observation_snapshot', $payload) && $payload['observation_snapshot'] !== null) {
+            if (!is_array($payload['observation_snapshot'])) {
+                throw new BadRequestHttpException('Field "observation_snapshot" must be an object.');
+            }
+            if ($payload['observation_snapshot'] !== [] && array_is_list($payload['observation_snapshot'])) {
+                throw new BadRequestHttpException('Field "observation_snapshot" must be an object.');
+            }
+
+            $encodedSnapshot = json_encode(
+                $payload['observation_snapshot'],
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
+            );
+            if (strlen($encodedSnapshot) > self::MAX_OBSERVATION_SNAPSHOT_BYTES) {
+                throw new BadRequestHttpException(sprintf(
+                    'Field "observation_snapshot" must encode to at most %d bytes.',
+                    self::MAX_OBSERVATION_SNAPSHOT_BYTES,
+                ));
+            }
+        }
+
         return [
             'message' => $playerMessage,
             'context' => RuntimeContext::fromArray([
@@ -73,6 +94,7 @@ final class ChatRequestMapper
                 'anomaly_detail' => $payload['anomaly_detail'] ?? null,
                 'decoy_zone' => $payload['decoy_zone'] ?? null,
                 'advice_state' => $payload['advice_state'] ?? null,
+                'observation_snapshot' => $payload['observation_snapshot'] ?? null,
                 'loop_index' => $payload['loop_index'] ?? null,
                 'offtopic' => $payload['offtopic'] ?? null,
             ]),

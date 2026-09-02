@@ -38,7 +38,14 @@ final class MetricsTest extends WebTestCase
                 'CONTENT_TYPE' => 'application/json',
                 'HTTP_X_GAME_TOKEN' => 'change-this-token',
             ],
-            content: json_encode(['ending' => 'cold_betrayal'], JSON_THROW_ON_ERROR),
+            content: json_encode([
+                'ending' => 'cold_betrayal',
+                'location_misdirection_used' => true,
+                'visited_suggested_decoy' => true,
+                'contradiction_exposed' => true,
+                'wrong_lift_advice_count' => 1,
+                'followed_wrong_lift_advice_count' => 1,
+            ], JSON_THROW_ON_ERROR),
         );
         self::assertResponseStatusCodeSame(204);
 
@@ -51,6 +58,11 @@ final class MetricsTest extends WebTestCase
 
         self::assertSame(1, $payload['counters']['run.ended']);
         self::assertSame(1, $payload['counters']['run.ended.cold_betrayal']);
+        self::assertSame(1, $payload['counters']['run.commitment.location_misdirection']);
+        self::assertSame(1, $payload['counters']['run.commitment.decoy_visited']);
+        self::assertSame(1, $payload['counters']['run.commitment.contradiction_exposed']);
+        self::assertSame(1, $payload['counters']['run.commitment.wrong_lift_advised']);
+        self::assertSame(1, $payload['counters']['run.commitment.wrong_lift_followed']);
         self::assertNotSame('', $payload['at']);
     }
 }

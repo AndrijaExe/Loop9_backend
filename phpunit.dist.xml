@@ -17,6 +17,9 @@
         <server name="SHELL_VERBOSITY" value="-1" />
         <env name="KERNEL_CLASS" value="App\Kernel" />
         <env name="AI_COMMITMENT_ENABLED" value="false" force="true" />
+        <env name="AI_COMMITMENT_LOCATION_ENABLED" value="true" force="true" />
+        <env name="AI_COMMITMENT_WRONG_LIFT_ENABLED" value="true" force="true" />
+        <env name="AI_OBSERVATION_CONTEXT_ENABLED" value="false" force="true" />
     </php>
 
     <testsuites>

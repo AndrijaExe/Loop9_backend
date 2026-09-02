@@ -27,6 +27,16 @@ final class RunTelemetryControllerTest extends TestCase
                 'resets' => 4,
                 'aiMessages' => 12,
                 'build' => '1.0.0',
+                'commitment' => [
+                    'locationMisdirectionUsed' => true,
+                    'visitedSuggestedDecoy' => true,
+                    'contradictionExposed' => true,
+                    'decoyVisitSeconds' => 8.5,
+                    'liftAdviceCount' => 3,
+                    'followedLiftAdviceCount' => 2,
+                    'wrongLiftAdviceCount' => 1,
+                    'followedWrongLiftAdviceCount' => 1,
+                ],
             ]);
 
         $controller = new RunTelemetryController(
@@ -59,6 +69,14 @@ final class RunTelemetryControllerTest extends TestCase
                 'resets' => 4,
                 'ai_messages' => 12,
                 'build' => '1.0.0',
+                'location_misdirection_used' => true,
+                'visited_suggested_decoy' => true,
+                'contradiction_exposed' => true,
+                'decoy_visit_seconds' => 8.5,
+                'lift_advice_count' => 3,
+                'followed_lift_advice_count' => 2,
+                'wrong_lift_advice_count' => 1,
+                'followed_wrong_lift_advice_count' => 1,
             ], JSON_THROW_ON_ERROR),
         );
 

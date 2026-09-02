@@ -34,6 +34,7 @@ renders the directive. Production runs with `AI_COMMITMENT_ENABLED=true`.
 | `withhold` | No finding / offtopic — no lift name |
 | `accurate_hint` / `accurate_lift` | Normal truthful path |
 | `misdirect_location` | Once from loop 5+, moderate+ dependency, valid `decoy_zone`, not Pursuer/Phantom |
+| `confrontation` | Once after the client confirms the planted contradiction was exposed; defensive response, no new lift/location |
 | `wrong_lift` | Once from loop 7+, after location lie + later `SUSPICION=1` + prior surrender + high dependency; forces dark on an active non-Pursuer anomaly |
 
 Gateway checks: withheld replies must not leak a lift name; forced `wrong_lift`
@@ -43,6 +44,26 @@ The JSON response may include an `advice` object (`mode`, `lift`,
 
 Per-run memory lives only in the Unreal client (`FDragojloCommitmentState`);
 cleared on `ResetRunState`, never saved to Cloud or backend storage.
+
+`AI_COMMITMENT_ENABLED` is the master switch. Location and wrong-lift phases
+also have independent `AI_COMMITMENT_LOCATION_ENABLED` and
+`AI_COMMITMENT_WRONG_LIFT_ENABLED` switches. Turning either child switch off
+falls back to truthful guidance without changing the client contract.
+
+## Bounded observation context
+
+The optional `observation_snapshot` is parsed into a closed, bounded domain
+model. When `AI_OBSERVATION_CONTEXT_ENABLED=true`, `PromptFactory` renders its
+canonical compact JSON after the server-authored advice directive and inside
+the existing `UNTRUSTED` markers. It describes approximate recent observations,
+not a continuous surveillance feed. The model may claim a player action only
+when that action appears in the snapshot.
+
+Observation data is narration context only. It cannot override `AdvicePolicy`,
+the selected lift/location directive, or anomaly truth. `anomaly_context`
+continues to provide policy knowledge, and `AdvicePolicy` does not inspect the
+observation snapshot. When the flag is false or the field is absent, prompt
+behavior is unchanged.
 
 ## Provider routing
 
