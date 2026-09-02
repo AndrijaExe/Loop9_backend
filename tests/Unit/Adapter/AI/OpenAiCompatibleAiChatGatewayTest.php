@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Adapter\AI;
 
 use App\Adapter\Telemetry\InMemoryEventCounters;
+use App\Model\Chat\AdvicePlanner;
+use App\Model\Chat\AdvicePolicy;
+use App\Model\Chat\CommitmentOptions;
+use App\Model\Chat\PlayerFindingClassifier;
 use App\Model\Chat\ProviderRoutingPolicy;
 use App\Model\Chat\RuntimeContext;
 use App\Model\Chat\AssistantReplyFormatValidator;
@@ -609,9 +613,12 @@ final class OpenAiCompatibleAiChatGatewayTest extends TestCase
         return new OpenAiCompatibleAiChatGateway(
             providerCatalog: $catalog,
             routingPolicy: new ProviderRoutingPolicy(),
+            advicePlanner: new AdvicePlanner(
+                new PlayerFindingClassifier(),
+                new AdvicePolicy(new CommitmentOptions(false, true, true)),
+            ),
             promptFactory: new PromptFactory(
                 $projectDir . '/config/prompts',
-                new \App\Model\Chat\AdvicePolicy(false),
                 '',
             ),
             httpClient: $http,

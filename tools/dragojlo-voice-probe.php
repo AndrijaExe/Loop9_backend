@@ -18,8 +18,11 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use App\Adapter\AI\PromptFactory;
+use App\Model\Chat\AdvicePlanner;
 use App\Model\Chat\AdvicePolicy;
 use App\Model\Chat\AssistantReplyFormatValidator;
+use App\Model\Chat\CommitmentOptions;
+use App\Model\Chat\PlayerFindingClassifier;
 use App\Model\Chat\ProviderRoutingPolicy;
 use App\Model\Chat\RuntimeContext;
 
@@ -447,13 +450,19 @@ $commitmentOn = getenv('AI_COMMITMENT_ENABLED');
 $commitmentDefault = is_string($commitmentOn) && filter_var($commitmentOn, FILTER_VALIDATE_BOOLEAN);
 $factory = new PromptFactory(
     __DIR__ . '/../config/prompts',
-    new AdvicePolicy($commitmentDefault),
     '',
+);
+$planner = new AdvicePlanner(
+    new PlayerFindingClassifier(),
+    new AdvicePolicy(new CommitmentOptions($commitmentDefault, true, true)),
 );
 $factoryCommitment = new PromptFactory(
     __DIR__ . '/../config/prompts',
-    new AdvicePolicy(true),
     '',
+);
+$plannerCommitment = new AdvicePlanner(
+    new PlayerFindingClassifier(),
+    new AdvicePolicy(new CommitmentOptions(true, true, true)),
 );
 $validator = new AssistantReplyFormatValidator();
 $routing = new ProviderRoutingPolicy();
@@ -478,7 +487,8 @@ foreach ($models as $model) {
 
         $context = RuntimeContext::fromArray($scenario['context']);
         $activeFactory = !empty($scenario['commitment_enabled']) ? $factoryCommitment : $factory;
-        $directive = $activeFactory->resolveAdviceDirective($scenario['message'], $context);
+        $activePlanner = !empty($scenario['commitment_enabled']) ? $plannerCommitment : $planner;
+        $directive = $activePlanner->plan($scenario['message'], $context);
         $messages = $activeFactory->buildMessages($scenario['message'], $context, $directive);
         $maxTokens = $routing->maxTokensForLoop($context->loopIndex());
 

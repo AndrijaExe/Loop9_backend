@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Model\Chat;
 
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
-
 /**
  * Locked deception phases for Dragojlo's per-run commitment system.
  *
@@ -24,28 +22,23 @@ final class AdvicePolicy
     private const float TRUST_FOR_KIND_HINT = 0.60;
 
     public function __construct(
-        #[Autowire(env: 'bool:AI_COMMITMENT_ENABLED')]
-        private readonly bool $commitmentEnabled = false,
-        #[Autowire(env: 'bool:AI_COMMITMENT_LOCATION_ENABLED')]
-        private readonly bool $locationMisdirectionEnabled = true,
-        #[Autowire(env: 'bool:AI_COMMITMENT_WRONG_LIFT_ENABLED')]
-        private readonly bool $wrongLiftEnabled = true,
+        private readonly CommitmentOptions $options,
     ) {
     }
 
     public function isCommitmentEnabled(): bool
     {
-        return $this->commitmentEnabled;
+        return $this->options->masterEnabled;
     }
 
-    public function decide(string $playerMessage, RuntimeContext $context, bool $playerReportedFinding): AdviceDirective
+    public function decide(RuntimeContext $context, bool $playerReportedFinding): AdviceDirective
     {
         $state = $context->state();
         $anomalyActive = $state !== null && $state->anomalyKey() !== null;
         $commitmentId = bin2hex(random_bytes(8));
         $advice = $context->adviceState();
 
-        if ($this->commitmentEnabled
+        if ($this->options->masterEnabled
             && $advice !== null
             && $advice->locationMisdirectionUsed()
             && $advice->contradictionExposed()
@@ -72,8 +65,8 @@ final class AdvicePolicy
             );
         }
 
-        if ($this->commitmentEnabled
-            && $this->wrongLiftEnabled
+        if ($this->options->masterEnabled
+            && $this->options->wrongLiftEnabled
             && $this->shouldWrongLift($context, $anomalyActive)) {
             return new AdviceDirective(
                 mode: AdviceDirective::MODE_WRONG_LIFT,
@@ -86,8 +79,8 @@ final class AdvicePolicy
             );
         }
 
-        if ($this->commitmentEnabled
-            && $this->locationMisdirectionEnabled
+        if ($this->options->masterEnabled
+            && $this->options->locationMisdirectionEnabled
             && $this->shouldMisdirectLocation($context, $anomalyActive)) {
             return new AdviceDirective(
                 mode: AdviceDirective::MODE_MISDIRECT_LOCATION,

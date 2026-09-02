@@ -6,7 +6,7 @@ namespace App\Model\Chat;
 
 final class ObservationSnapshot
 {
-    public const int MAX_IDENTIFIER_LENGTH = 48;
+    public const int MAX_IDENTIFIER_LENGTH = ObservationIdentifierNormalizer::MAX_LENGTH;
     public const int MAX_EVENTS = 8;
     public const int MAX_VISITED_ZONES = 8;
     public const int MAX_SECONDS_ON_FLOOR = 65535;
@@ -51,7 +51,7 @@ final class ObservationSnapshot
         $visitedZones = [];
         if (isset($raw['visited_zones']) && is_array($raw['visited_zones'])) {
             foreach ($raw['visited_zones'] as $candidate) {
-                $zone = self::sanitizeIdentifier($candidate);
+                $zone = ObservationIdentifierNormalizer::normalize($candidate);
                 if ($zone === null || in_array($zone, $visitedZones, true)) {
                     continue;
                 }
@@ -66,7 +66,7 @@ final class ObservationSnapshot
         $summary = is_array($raw['run_summary'] ?? null) ? $raw['run_summary'] : [];
 
         return new self(
-            currentZone: self::sanitizeIdentifier($raw['current_zone'] ?? null),
+            currentZone: ObservationIdentifierNormalizer::normalize($raw['current_zone'] ?? null),
             secondsOnFloor: self::boundedInteger(
                 $raw['seconds_on_floor'] ?? 0,
                 0,
@@ -97,32 +97,6 @@ final class ObservationSnapshot
                 ),
             ],
         );
-    }
-
-    public static function sanitizeIdentifier(mixed $value): ?string
-    {
-        if (!is_string($value)) {
-            return null;
-        }
-
-        $normalized = mb_strtolower(trim($value));
-        $normalized = preg_replace('/[\p{Cc}\p{Cf}\s]+/u', '_', $normalized);
-        if (!is_string($normalized)) {
-            return null;
-        }
-
-        // These are authored identifiers, not labels or free-form prose.
-        // Mirroring the game-side slug contract removes instruction-shaped
-        // punctuation before the value ever reaches the prompt.
-        $normalized = preg_replace('/[^a-z0-9_-]+/', '', $normalized);
-        $normalized = preg_replace('/[_-]{2,}/', '_', is_string($normalized) ? $normalized : '');
-        if (!is_string($normalized)) {
-            return null;
-        }
-
-        $normalized = trim($normalized, '_-');
-
-        return $normalized === '' ? null : substr($normalized, 0, self::MAX_IDENTIFIER_LENGTH);
     }
 
     /**

@@ -26,8 +26,11 @@
 
 ## Commitment / controlled misdirection
 
-`AdvicePolicy` decides the phase **before** the model runs. `PromptFactory` only
-renders the directive. Production runs with `AI_COMMITMENT_ENABLED=true`.
+`PlayerFindingClassifier` classifies whether the message reports a floor
+finding, then `AdvicePlanner` asks `AdvicePolicy` for one directive **before**
+the model runs. The gateway reuses that same directive for rendering and reply
+validation; `PromptFactory` only renders it. Production runs with
+`AI_COMMITMENT_ENABLED=true`.
 
 | Mode | When (flag on) |
 |---|---|
@@ -127,7 +130,9 @@ rate when the provider reports them. Keep model ids aligned with configured prov
 
 1. Edit `system_compact.txt` and/or `system_full.txt`.
 2. Update `PromptFactory` only if runtime injection rules change.
-3. Extend/adjust `PromptFactoryTest` and related domain tests.
-4. Run `composer test`.
-5. Spot-check clean loop 1, one anomaly context, and tone variants in staging.
-6. Do not duplicate prompt text into game docs; link here instead.
+3. Update `PlayerFindingClassifier` or `AdvicePolicy` only when classification
+   or gameplay policy changes; keep that logic out of `PromptFactory`.
+4. Extend/adjust adapter and focused domain tests.
+5. Run `composer test`.
+6. Spot-check clean loop 1, one anomaly context, and tone variants in staging.
+7. Do not duplicate prompt text into game docs; link here instead.

@@ -6,6 +6,7 @@ namespace App\Tests\Unit\Model\Chat;
 
 use App\Model\Chat\AdviceDirective;
 use App\Model\Chat\AdvicePolicy;
+use App\Model\Chat\CommitmentOptions;
 use App\Model\Chat\RuntimeContext;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -14,9 +15,8 @@ final class AdvicePolicyTest extends TestCase
 {
     public function testFlagOffNeverMisdirectsOrWrongLifts(): void
     {
-        $policy = new AdvicePolicy(false);
+        $policy = self::policy(false);
         $directive = $policy->decide(
-            'The chair moved. Which elevator?',
             RuntimeContext::fromArray([
                 'loop_index' => 8,
                 'decoy_zone' => 'the north corridor',
@@ -46,8 +46,7 @@ final class AdvicePolicyTest extends TestCase
 
     public function testWithholdsWithoutFinding(): void
     {
-        $directive = (new AdvicePolicy(true))->decide(
-            'Which elevator?',
+        $directive = self::policy(true)->decide(
             RuntimeContext::fromArray(['loop_index' => 5]),
             false,
         );
@@ -58,8 +57,7 @@ final class AdvicePolicyTest extends TestCase
 
     public function testLoopOneNeverMisdirectsEvenWithDecoy(): void
     {
-        $directive = (new AdvicePolicy(true))->decide(
-            'Something moved.',
+        $directive = self::policy(true)->decide(
             RuntimeContext::fromArray([
                 'loop_index' => 1,
                 'decoy_zone' => 'the north corridor',
@@ -79,8 +77,7 @@ final class AdvicePolicyTest extends TestCase
 
     public function testMisdirectUsesDecoyOnce(): void
     {
-        $directive = (new AdvicePolicy(true))->decide(
-            'Something moved in the archive.',
+        $directive = self::policy(true)->decide(
             RuntimeContext::fromArray([
                 'loop_index' => 5,
                 'decoy_zone' => 'the north corridor',
@@ -105,8 +102,7 @@ final class AdvicePolicyTest extends TestCase
 
     public function testLocationKillSwitchKeepsTruthfulHint(): void
     {
-        $directive = (new AdvicePolicy(true, false, true))->decide(
-            'Something moved.',
+        $directive = self::policy(true, false, true)->decide(
             RuntimeContext::fromArray([
                 'loop_index' => 5,
                 'decoy_zone' => 'the north corridor',
@@ -140,7 +136,7 @@ final class AdvicePolicyTest extends TestCase
             ],
         ]);
 
-        $directive = (new AdvicePolicy(true))->decide('You lied to me.', $context, true);
+        $directive = self::policy(true)->decide($context, true);
 
         self::assertSame(AdviceDirective::MODE_CONFRONTATION, $directive->mode());
         self::assertTrue($directive->withholdsElevator());
@@ -149,8 +145,7 @@ final class AdvicePolicyTest extends TestCase
     public function testPursuerAndPhantomAreNotLocationMisdirectCandidates(): void
     {
         foreach (['PursuerAnomaly', 'PhantomMessageAnomaly'] as $key) {
-            $directive = (new AdvicePolicy(true))->decide(
-                'Something is wrong.',
+            $directive = self::policy(true)->decide(
                 RuntimeContext::fromArray([
                     'loop_index' => 6,
                     'decoy_zone' => 'the north corridor',
@@ -175,8 +170,7 @@ final class AdvicePolicyTest extends TestCase
 
     public function testWrongLiftRequiresFullLatePath(): void
     {
-        $directive = (new AdvicePolicy(true))->decide(
-            'The chair is moved. Which elevator?',
+        $directive = self::policy(true)->decide(
             RuntimeContext::fromArray([
                 'loop_index' => 8,
                 'decoy_zone' => 'the north corridor',
@@ -204,8 +198,7 @@ final class AdvicePolicyTest extends TestCase
 
     public function testWrongLiftKillSwitchKeepsTruthfulLift(): void
     {
-        $directive = (new AdvicePolicy(true, true, false))->decide(
-            'The chair moved. Which elevator?',
+        $directive = self::policy(true, true, false)->decide(
             RuntimeContext::fromArray([
                 'loop_index' => 8,
                 'anomaly_detail' => ['zone' => 'the archive room'],
@@ -232,8 +225,7 @@ final class AdvicePolicyTest extends TestCase
     #[DataProvider('wrongLiftBlockedProvider')]
     public function testWrongLiftIsBlockedWhenPathIncomplete(array $adviceState, int $loop, float $dependency): void
     {
-        $directive = (new AdvicePolicy(true))->decide(
-            'The chair is moved.',
+        $directive = self::policy(true)->decide(
             RuntimeContext::fromArray([
                 'loop_index' => $loop,
                 'anomaly_detail' => ['zone' => 'the archive room'],
@@ -302,8 +294,7 @@ final class AdvicePolicyTest extends TestCase
 
     public function testCleanFloorFindingPinsDarkLift(): void
     {
-        $directive = (new AdvicePolicy(false))->decide(
-            'Everything looks fine.',
+        $directive = self::policy(false)->decide(
             RuntimeContext::fromArray([
                 'loop_index' => 1,
                 'state' => [
@@ -327,5 +318,17 @@ final class AdvicePolicyTest extends TestCase
         self::assertSame(AdviceDirective::MODE_WITHHOLD, $array['mode']);
         self::assertSame(AdviceDirective::LIFT_NONE, $array['lift']);
         self::assertNotSame('', $array['commitment_id']);
+    }
+
+    private static function policy(
+        bool $masterEnabled,
+        bool $locationMisdirectionEnabled = true,
+        bool $wrongLiftEnabled = true,
+    ): AdvicePolicy {
+        return new AdvicePolicy(new CommitmentOptions(
+            masterEnabled: $masterEnabled,
+            locationMisdirectionEnabled: $locationMisdirectionEnabled,
+            wrongLiftEnabled: $wrongLiftEnabled,
+        ));
     }
 }

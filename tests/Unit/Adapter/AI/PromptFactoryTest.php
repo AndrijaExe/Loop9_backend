@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Adapter\AI;
 
+use App\Model\Chat\AdviceDirective;
+use App\Model\Chat\AdvicePlanner;
 use App\Model\Chat\AdvicePolicy;
+use App\Model\Chat\CommitmentOptions;
+use App\Model\Chat\PlayerFindingClassifier;
 use App\Model\Chat\RuntimeContext;
 use App\Adapter\AI\PromptFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -12,16 +16,11 @@ use PHPUnit\Framework\TestCase;
 
 final class PromptFactoryTest extends TestCase
 {
-    private PromptFactory $factory;
+    private PromptHarness $factory;
 
     protected function setUp(): void
     {
-        $projectDir = dirname(__DIR__, 4);
-        $this->factory = new PromptFactory(
-            $projectDir . '/config/prompts',
-            new AdvicePolicy(false),
-            '',
-        );
+        $this->factory = $this->promptHarness();
     }
 
     public function testPromptsRequireEvidenceBasedGuidanceAndExplicitStateRubric(): void
@@ -654,13 +653,56 @@ final class PromptFactoryTest extends TestCase
         );
     }
 
-    private function observationFactory(bool $enabled): PromptFactory
+    private function observationFactory(bool $enabled): PromptHarness
     {
-        return new PromptFactory(
+        return $this->promptHarness($enabled);
+    }
+
+    private function promptHarness(bool $observationContextEnabled = false): PromptHarness
+    {
+        $factory = new PromptFactory(
             dirname(__DIR__, 4) . '/config/prompts',
-            new AdvicePolicy(false),
             '',
-            $enabled,
+            $observationContextEnabled,
         );
+
+        return new PromptHarness(
+            $factory,
+            new AdvicePlanner(
+                new PlayerFindingClassifier(),
+                new AdvicePolicy(new CommitmentOptions(false, true, true)),
+            ),
+        );
+    }
+}
+
+final readonly class PromptHarness
+{
+    public function __construct(
+        private PromptFactory $factory,
+        private AdvicePlanner $planner,
+    ) {
+    }
+
+    public function buildSystemPrompt(int $loopIndex): string
+    {
+        return $this->factory->buildSystemPrompt($loopIndex);
+    }
+
+    public function buildRuntimeContextPrompt(
+        RuntimeContext $context,
+        string $playerMessage = '',
+        ?AdviceDirective $directive = null,
+    ): string {
+        return $this->factory->buildRuntimeContextPrompt(
+            $context,
+            $playerMessage,
+            $directive ?? $this->planner->plan($playerMessage, $context),
+        );
+    }
+
+    public function resolveAdviceDirective(string $playerMessage, RuntimeContext $context): AdviceDirective
+    {
+        return $this->planner->plan($playerMessage, $context);
     }
 }

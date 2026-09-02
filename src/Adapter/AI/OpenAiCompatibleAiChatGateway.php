@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Adapter\AI;
 
+use App\Model\Chat\AdvicePlanner;
 use App\Model\Chat\Message;
 use App\Model\Chat\ProviderRoutingPolicy;
 use App\Model\Chat\AiChatGateway;
@@ -23,6 +24,7 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
     public function __construct(
         private readonly AiProviderCatalog $providerCatalog,
         private readonly ProviderRoutingPolicy $routingPolicy,
+        private readonly AdvicePlanner $advicePlanner,
         private readonly PromptFactory $promptFactory,
         private readonly OpenAiCompatibleHttpClientInterface $httpClient,
         private readonly AssistantReplyFormatValidator $replyFormatValidator,
@@ -35,7 +37,7 @@ final class OpenAiCompatibleAiChatGateway implements AiChatGateway
 
     public function ask(string $playerMessage, RuntimeContext $context): Message
     {
-        $directive = $this->promptFactory->resolveAdviceDirective($playerMessage, $context);
+        $directive = $this->advicePlanner->plan($playerMessage, $context);
         $withholdElevatorVerdict = $directive->withholdsElevator();
         $messages = $this->promptFactory->buildMessages($playerMessage, $context, $directive);
         $providers = $this->routingPolicy->orderByLoop(

@@ -44,8 +44,8 @@ final class ObservationEvent
 
         return new self(
             type: $type,
-            zone: ObservationSnapshot::sanitizeIdentifier($raw['zone'] ?? null),
-            subject: ObservationSnapshot::sanitizeIdentifier($raw['subject'] ?? null),
+            zone: ObservationIdentifierNormalizer::normalize($raw['zone'] ?? null),
+            subject: ObservationIdentifierNormalizer::normalize($raw['subject'] ?? null),
             count: self::boundedInteger($raw['count'] ?? 1, 1, self::MAX_COUNT, 1),
             ageSeconds: self::boundedInteger($raw['age_seconds'] ?? 0, 0, self::MAX_AGE_SECONDS, 0),
         );

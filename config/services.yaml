@@ -42,6 +42,12 @@ services:
         alias: App\Adapter\AI\OpenAiContentSafetyGateway
         public: false
 
+    App\Model\Chat\CommitmentOptions:
+        arguments:
+            $masterEnabled: '%env(bool:AI_COMMITMENT_ENABLED)%'
+            $locationMisdirectionEnabled: '%env(bool:AI_COMMITMENT_LOCATION_ENABLED)%'
+            $wrongLiftEnabled: '%env(bool:AI_COMMITMENT_WRONG_LIFT_ENABLED)%'
+
     App\Adapter\AI\OpenAiCompatibleHttpClientInterface:
         alias: App\Adapter\AI\OpenAiCompatibleHttpClient
         public: false
