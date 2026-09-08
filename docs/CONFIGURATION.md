@@ -52,6 +52,7 @@ Burst chat limit (`20/min`) and Steam auth (`10/min`) / telemetry (`30/h`) are c
 | `AI_COMMITMENT_WRONG_LIFT_ENABLED` | Independent late wrong-lift kill switch; turn this off first if ending balance shifts. Production `true`. |
 | `AI_COMMITMENT_WRONG_LIFT_CHANCE` | `0.0`–`1.0`, default `0.5`. Per-floor chance of the late wrong lift when the player leans on him (surrendered the decision or followed his last lift call) but did not walk the full planted-location → accusation → surrender arc; that arc always lies. Same floor never re-rolls. `0` = only the full arc lies, `1` = every eligible floor lies. Clamped on load. |
 | `AI_OBSERVATION_CONTEXT_ENABLED` | Enables bounded observation narration in prompts. Production `true` since 07.09.2026 (zone volumes ship in the `v1.0.5` cook); the request field remains accepted and parsed while disabled. |
+| `AI_RUN_HISTORY_ENABLED` | Dragojlo recognises a returning player from the client's `run_history` object (counters + closed-list labels, sent only for the first three replies of a run). Tone only: it is rendered as a prompt block and never reaches `AdvicePolicy`, `GameState` or safety. Default `true`; clients ≤ v1.0.5 never send the field, so enabling it on `main` changes nothing until the 1.1 cook ships. |
 
 Render does not copy committed `.env` defaults into its Environment UI. Add
 these flags explicitly in Render when they must be visible/editable there,
@@ -65,6 +66,7 @@ AI_COMMITMENT_LOCATION_ENABLED=true
 AI_COMMITMENT_WRONG_LIFT_ENABLED=true
 AI_COMMITMENT_WRONG_LIFT_CHANCE=0.5
 AI_OBSERVATION_CONTEXT_ENABLED=true
+AI_RUN_HISTORY_ENABLED=true
 ```
 
 Tuning order if the ending mix drifts after launch: lower

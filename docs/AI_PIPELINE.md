@@ -73,6 +73,23 @@ continues to provide policy knowledge, and `AdvicePolicy` does not inspect the
 observation snapshot. When the flag is false or the field is absent, prompt
 behavior is unchanged.
 
+## Cross-run memory (`run_history`)
+
+The optional `run_history` object is parsed into `RunHistory`: clamped counters
+plus two closed-list labels (`last_ending`, `last_run_tone`). When
+`AI_RUN_HISTORY_ENABLED=true`, `PromptFactory::runHistoryBlock()` renders one
+paragraph after the observation block: a recognition instruction (one short
+clause at most, never the numbers, never an ending name, never game terms like
+"run" or "save"), the last ending retold in Dragojlo's own words, a tone line
+(warm / cold / neutral), one line about earlier lies (caught vs. never noticed),
+and one about a player who always followed his lift call. The counters follow
+inside `UNTRUSTED` markers.
+
+It is deliberately tone-only. `AdvicePolicy`, `GameState`, the finding
+classifier and the safety layer never see it, so a tampered client can at most
+make him greet a stranger like an old acquaintance. Clients ≤ v1.0.5 never send
+the field.
+
 ## Provider routing
 
 `ProviderRoutingPolicy` + `AiProviderCatalog`:

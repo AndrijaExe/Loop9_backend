@@ -121,6 +121,71 @@ final class ChatRequestMapperTest extends TestCase
         ));
     }
 
+    public function testCarriesRunHistoryIntoTheContextAndDropsUnknownLabels(): void
+    {
+        $mapped = (new ChatRequestMapper())->map(Request::create(
+            '/api/chat',
+            'POST',
+            content: json_encode([
+                'message' => 'hello',
+                'run_history' => [
+                    'runs_finished' => 2,
+                    'last_ending' => 'the_replacement',
+                    'last_run_tone' => 'sarcastic',
+                    'lies_told' => 3.7,
+                ],
+            ], JSON_THROW_ON_ERROR),
+        ));
+
+        $history = $mapped['context']->runHistory();
+        self::assertNotNull($history);
+        self::assertSame(2, $history->runsFinished());
+        self::assertSame('the_replacement', $history->lastEnding());
+        self::assertSame('neutral', $history->lastRunTone());
+        self::assertSame(3, $history->liesTold());
+    }
+
+    public function testRunHistoryWithoutFinishedRunsIsIgnored(): void
+    {
+        $mapped = (new ChatRequestMapper())->map(Request::create(
+            '/api/chat',
+            'POST',
+            content: json_encode([
+                'message' => 'hello',
+                'run_history' => ['lies_told' => 40],
+            ], JSON_THROW_ON_ERROR),
+        ));
+
+        self::assertNull($mapped['context']->runHistory());
+    }
+
+    public function testRejectsRunHistoryListOrOversizedObject(): void
+    {
+        $mapper = new ChatRequestMapper();
+
+        try {
+            $mapper->map(Request::create('/api/chat', 'POST', content: json_encode([
+                'message' => 'hello',
+                'run_history' => [['runs_finished' => 1]],
+            ], JSON_THROW_ON_ERROR)));
+            self::fail('List should be rejected');
+        } catch (BadRequestHttpException $e) {
+            self::assertSame('Field "run_history" must be an object.', $e->getMessage());
+        }
+
+        $tooMany = [];
+        for ($i = 0; $i <= ChatRequestMapper::MAX_RUN_HISTORY_FIELDS; ++$i) {
+            $tooMany['k' . $i] = $i;
+        }
+
+        $this->expectException(BadRequestHttpException::class);
+        $this->expectExceptionMessage('Field "run_history" must have at most');
+        $mapper->map(Request::create('/api/chat', 'POST', content: json_encode([
+            'message' => 'hello',
+            'run_history' => $tooMany,
+        ], JSON_THROW_ON_ERROR)));
+    }
+
     public function testRejectsObservationSnapshotListInsteadOfObject(): void
     {
         $this->expectException(BadRequestHttpException::class);

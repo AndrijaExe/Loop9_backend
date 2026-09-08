@@ -158,6 +158,15 @@ Request body (canonical fields):
       "elevator_decisions": 1,
       "correct_decisions": 1
     }
+  },
+  "run_history": {
+    "runs_finished": 2,
+    "last_ending": "cold_betrayal",
+    "last_run_calls": 7,
+    "last_run_tone": "cold",
+    "lies_told": 1,
+    "caught_lying": 1,
+    "runs_following_him": 1
   }
 }
 ```
@@ -193,6 +202,16 @@ Notes:
   slugs (the official client emits at most 32 characters). It must never contain
   raw chat, coordinates, actor names, anomaly keys, commitment IDs, or
   relationship floats.
+- `run_history` (client ≥ 1.1) is optional cross-run memory: what Dragojlo
+  remembers about this player from earlier finished runs. The official client
+  sends it only while the current run has fewer than three AI interactions.
+  Integers are clamped to `0..9999`; `last_ending` must be one of
+  `escape_together|obedient_fool|cold_betrayal|paranoid_survivor|merged_memory|the_replacement`
+  and `last_run_tone` one of `warm|neutral|cold` (anything else is dropped or
+  read as `neutral`). At most 12 fields; an object with `runs_finished` ≤ 0 is
+  ignored. It is tone only — rendered as a prompt block when
+  `AI_RUN_HISTORY_ENABLED=true` and never read by `AdvicePolicy`, so a tampered
+  value cannot change the lift, the place, or the truth about the floor.
 
 Response `200`:
 

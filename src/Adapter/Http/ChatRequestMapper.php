@@ -14,6 +14,7 @@ final class ChatRequestMapper
     public const MAX_LANGUAGE_LENGTH = 32;
     public const MAX_ANOMALY_CONTEXT_LENGTH = 1000;
     public const MAX_OBSERVATION_SNAPSHOT_BYTES = 2048;
+    public const MAX_RUN_HISTORY_FIELDS = 12;
     public const MAX_JSON_DEPTH = 8;
 
     /**
@@ -84,6 +85,19 @@ final class ChatRequestMapper
             }
         }
 
+        if (array_key_exists('run_history', $payload) && $payload['run_history'] !== null) {
+            if (!is_array($payload['run_history'])
+                || ($payload['run_history'] !== [] && array_is_list($payload['run_history']))) {
+                throw new BadRequestHttpException('Field "run_history" must be an object.');
+            }
+            if (count($payload['run_history']) > self::MAX_RUN_HISTORY_FIELDS) {
+                throw new BadRequestHttpException(sprintf(
+                    'Field "run_history" must have at most %d fields.',
+                    self::MAX_RUN_HISTORY_FIELDS,
+                ));
+            }
+        }
+
         return [
             'message' => $playerMessage,
             'context' => RuntimeContext::fromArray([
@@ -95,6 +109,7 @@ final class ChatRequestMapper
                 'decoy_zone' => $payload['decoy_zone'] ?? null,
                 'advice_state' => $payload['advice_state'] ?? null,
                 'observation_snapshot' => $payload['observation_snapshot'] ?? null,
+                'run_history' => $payload['run_history'] ?? null,
                 'loop_index' => $payload['loop_index'] ?? null,
                 'offtopic' => $payload['offtopic'] ?? null,
             ]),

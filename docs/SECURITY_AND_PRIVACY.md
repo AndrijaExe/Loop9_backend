@@ -40,7 +40,8 @@ you before they hit the cap. The mark is a hash, the same as presence.
    below runs.
 2. Burst `game_chat` — cheap, keyed on auth scope + real client IP.
 3. Body validation (JSON depth, 64 KiB body, message ≤ 1000 chars,
-   `anomaly_context` ≤ 1000, `observation_snapshot` ≤ 2048 bytes). Malformed
+   `anomaly_context` ≤ 1000, `observation_snapshot` ≤ 2048 bytes,
+   `run_history` ≤ 12 fields of clamped ints / closed-list labels). Malformed
    requests never touch a quota.
 4. IP daily → player daily → player monthly → global daily. Player identity is
    the verified Steam ID; one Steam account is one bucket no matter how many
