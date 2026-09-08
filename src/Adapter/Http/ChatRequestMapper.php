@@ -10,7 +10,7 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 final class ChatRequestMapper
 {
-    public const MAX_MESSAGE_LENGTH = 4000;
+    public const MAX_MESSAGE_LENGTH = 1000;
     public const MAX_LANGUAGE_LENGTH = 32;
     public const MAX_ANOMALY_CONTEXT_LENGTH = 1000;
     public const MAX_OBSERVATION_SNAPSHOT_BYTES = 2048;

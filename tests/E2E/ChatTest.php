@@ -111,7 +111,7 @@ final class ChatTest extends WebTestCase
                 'HTTP_X_GAME_TOKEN' => $this->gameToken(),
             ],
             content: json_encode([
-                'message' => str_repeat('a', 4001),
+                'message' => str_repeat('a', \App\Adapter\Http\ChatRequestMapper::MAX_MESSAGE_LENGTH + 1),
                 'player_id' => 'player-test',
             ], JSON_THROW_ON_ERROR),
         );
