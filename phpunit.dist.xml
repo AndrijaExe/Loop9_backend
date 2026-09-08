@@ -20,6 +20,8 @@
         <env name="AI_COMMITMENT_LOCATION_ENABLED" value="true" force="true" />
         <env name="AI_COMMITMENT_WRONG_LIFT_ENABLED" value="true" force="true" />
         <env name="AI_COMMITMENT_WRONG_LIFT_CHANCE" value="0.5" force="true" />
+        <env name="AI_COMMITMENT_STALE_FLOOR_ENABLED" value="true" force="true" />
+        <env name="AI_COMMITMENT_STALE_FLOOR_CHANCE" value="0.35" force="true" />
         <env name="AI_OBSERVATION_CONTEXT_ENABLED" value="false" force="true" />
         <env name="AI_RUN_HISTORY_ENABLED" value="false" force="true" />
     </php>

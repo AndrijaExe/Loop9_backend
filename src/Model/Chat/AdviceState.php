@@ -18,6 +18,7 @@ final class AdviceState
         private readonly bool $followedLastLiftAdvice = false,
         private readonly bool $visitedSuggestedDecoy = false,
         private readonly bool $confrontationResponseUsed = false,
+        private readonly bool $staleFloorUsed = false,
         private readonly ?string $lastAdviceMode = null,
         private readonly ?string $lastLiftAdvice = null,
         private readonly ?string $lastSuggestedZone = null,
@@ -37,6 +38,7 @@ final class AdviceState
             followedLastLiftAdvice: self::boolFlag($raw['followed_last_lift_advice'] ?? false),
             visitedSuggestedDecoy: self::boolFlag($raw['visited_suggested_decoy'] ?? false),
             confrontationResponseUsed: self::boolFlag($raw['confrontation_response_used'] ?? false),
+            staleFloorUsed: self::boolFlag($raw['stale_floor_used'] ?? false),
             lastAdviceMode: self::optionalString($raw['last_advice_mode'] ?? null),
             lastLiftAdvice: self::optionalString($raw['last_lift_advice'] ?? null),
             lastSuggestedZone: self::optionalString($raw['last_suggested_zone'] ?? null, AnomalyDetail::MAX_FIELD_LENGTH),
@@ -76,6 +78,11 @@ final class AdviceState
     public function confrontationResponseUsed(): bool
     {
         return $this->confrontationResponseUsed;
+    }
+
+    public function staleFloorUsed(): bool
+    {
+        return $this->staleFloorUsed;
     }
 
     public function lastAdviceMode(): ?string

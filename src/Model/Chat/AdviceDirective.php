@@ -16,6 +16,8 @@ final class AdviceDirective
     public const MODE_CONFRONTATION = 'confrontation';
     public const MODE_WRONG_LIFT = 'wrong_lift';
     public const MODE_ACCURATE_LIFT = 'accurate_lift';
+    /** He talks about the previous floor's anomaly as if it were this one. */
+    public const MODE_STALE_FLOOR = 'stale_floor';
 
     public const LIFT_NONE = 'none';
     public const LIFT_LIT = 'lit';
@@ -76,6 +78,7 @@ final class AdviceDirective
     {
         return $this->mode === self::MODE_WITHHOLD
             || $this->mode === self::MODE_MISDIRECT_LOCATION
+            || $this->mode === self::MODE_STALE_FLOOR
             || $this->lift === self::LIFT_NONE;
     }
 

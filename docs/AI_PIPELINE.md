@@ -37,6 +37,7 @@ validation; `PromptFactory` only renders it. Production runs with
 | `withhold` | No finding / offtopic — no lift name |
 | `accurate_hint` / `accurate_lift` | Normal truthful path |
 | `misdirect_location` | Once from loop 5+, moderate+ dependency, valid `decoy_zone`, not Pursuer/Phantom |
+| `stale_floor` (1.1) | Once from loop 4+, **before** the player reports a finding, when the client sent `previous_anomaly_detail` with a zone (previous floor really had an anomaly), that zone differs from the current one, no place lie spent yet (`stale_floor_used` / `location_misdirection_used` / `wrong_lift_used` all false), not Pursuer. Stable per-floor roll against `AI_COMMITMENT_STALE_FLOOR_CHANCE` (default 0.35). He describes the previous floor's place/kind as if it were this floor; no lift name. Works on clean floors too |
 | `confrontation` | Once after the client confirms the planted contradiction was exposed; defensive response, no new lift/location |
 | `wrong_lift` | Once from loop 7+, high dependency, active non-Pursuer anomaly, and leverage: the player surrendered the decision (`pending_decision_surrender`) or followed his last lift call (`followed_last_lift_advice`). The full arc (location lie → `SUSPICION=1` → surrender) always fires; any other eligible floor is one stable per-floor roll against `AI_COMMITMENT_WRONG_LIFT_CHANCE` (default 0.5). Forces dark |
 
@@ -53,10 +54,11 @@ also have independent `AI_COMMITMENT_LOCATION_ENABLED` and
 `AI_COMMITMENT_WRONG_LIFT_ENABLED` switches. Turning either child switch off
 falls back to truthful guidance without changing the client contract.
 
-The wrong-lift roll is seeded from loop index, anomaly key, authored zone /
-object and decoy zone — nothing the player can read — so asking twice on the
-same floor gives the same answer, while a different floor or anomaly draw
-re-rolls. No per-player state is stored for it.
+The wrong-lift and stale-floor rolls are seeded (with a per-mode salt) from
+loop index, anomaly key, authored zone / object and decoy zone — nothing the
+player can read — so asking twice on the same floor gives the same answer,
+while a different floor or anomaly draw re-rolls. No per-player state is
+stored for either.
 
 ## Bounded observation context
 

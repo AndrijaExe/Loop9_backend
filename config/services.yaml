@@ -48,6 +48,8 @@ services:
             $locationMisdirectionEnabled: '%env(bool:AI_COMMITMENT_LOCATION_ENABLED)%'
             $wrongLiftEnabled: '%env(bool:AI_COMMITMENT_WRONG_LIFT_ENABLED)%'
             $wrongLiftChance: '%env(float:AI_COMMITMENT_WRONG_LIFT_CHANCE)%'
+            $staleFloorEnabled: '%env(bool:AI_COMMITMENT_STALE_FLOOR_ENABLED)%'
+            $staleFloorChance: '%env(float:AI_COMMITMENT_STALE_FLOOR_CHANCE)%'
 
     App\Adapter\AI\OpenAiCompatibleHttpClientInterface:
         alias: App\Adapter\AI\OpenAiCompatibleHttpClient

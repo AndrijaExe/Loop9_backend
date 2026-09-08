@@ -653,6 +653,35 @@ final class PromptFactoryTest extends TestCase
         );
     }
 
+    public function testStaleFloorDirectiveDescribesThePreviousPlaceWithoutNamingALift(): void
+    {
+        $factory = $this->promptHarness();
+        $context = RuntimeContext::fromArray([
+            'loop_index' => 5,
+            'anomaly_detail' => ['zone' => 'near one of the office desks', 'object' => 'a desk telephone'],
+            'previous_anomaly_detail' => ['zone' => 'the meeting room', 'object' => 'a wall clock'],
+            'advice_state' => ['stale_floor_used' => false],
+            'state' => ['dependency' => 0.5, 'player_confidence' => 0.7, 'anomaly_key' => 'HideAnomaly'],
+        ]);
+        $directive = new AdviceDirective(
+            mode: AdviceDirective::MODE_STALE_FLOOR,
+            lift: AdviceDirective::LIFT_NONE,
+            suggestedZone: 'the meeting room',
+            suggestedObject: 'a wall clock',
+            commitmentId: 'abc',
+            allowMisleadingTone: true,
+            anomalyActive: true,
+        );
+
+        $prompt = $factory->buildRuntimeContextPrompt($context, 'Gde da gledam?', $directive);
+
+        self::assertStringContainsString('Controlled stale-floor slip is required', $prompt);
+        self::assertStringContainsString('<<<UNTRUSTED>>>the meeting room | a wall clock<<<END_UNTRUSTED>>>', $prompt);
+        self::assertStringNotContainsString('near one of the office desks', $prompt);
+        self::assertStringNotContainsString('You can tell roughly where the anomaly is', $prompt);
+        self::assertStringNotContainsString('only correct recommendation is the lit elevator', $prompt);
+    }
+
     public function testRunHistoryBlockRetellsTheLastEndingWithoutNamingIt(): void
     {
         $factory = $this->promptHarness(false, true);

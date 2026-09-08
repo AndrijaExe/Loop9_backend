@@ -127,6 +127,10 @@ Request body (canonical fields):
     "zone": "the north corridor",
     "object": "a ceiling light panel"
   },
+  "previous_anomaly_detail": {
+    "zone": "the meeting room with the long table",
+    "object": "a wall clock"
+  },
   "decoy_zone": "the archive room",
   "advice_state": {
     "location_misdirection_used": false,
@@ -136,6 +140,7 @@ Request body (canonical fields):
     "followed_last_lift_advice": false,
     "visited_suggested_decoy": false,
     "confrontation_response_used": false,
+    "stale_floor_used": false,
     "last_advice_mode": "none",
     "last_lift_advice": "none"
   },
@@ -185,6 +190,10 @@ Notes:
   in English and neither an actor name. How much of it reaches the reply depends
   on `state.player_confidence`. Omit the object for placeless anomalies such as a
   phantom chat message; omit the whole field to leave the prompt unchanged.
+- `previous_anomaly_detail` (client ≥ 1.1) has the same shape as
+  `anomaly_detail` and describes the **previous** floor's anomaly; omit it when
+  that floor was clean. It only feeds the `stale_floor` directive, which needs
+  a zone in it; `advice_state.stale_floor_used` makes that slip one-shot per run.
 - `decoy_zone` is one authored inactive place, different from every active zone.
   The backend never invents a room; without a decoy it cannot plant a wrong location.
 - `advice_state` is structured per-run memory from the client (never raw chat).
@@ -231,8 +240,9 @@ Response `200`:
 
 `advice` is optional for older clients. When present it is **server-authored** from
 `AdvicePolicy` (not NLP over the reply text). Modes: `withhold`, `accurate_hint`,
-`accurate_lift`, `misdirect_location`, `confrontation`, `wrong_lift`. `lift` is
-`none|lit|dark`.
+`accurate_lift`, `misdirect_location`, `confrontation`, `wrong_lift`,
+`stale_floor` (1.1; `suggested_zone` is the previous floor's place). `lift` is
+`none|lit|dark`. Older clients ignore unknown modes.
 
 Assistant messages must include a trailing state tag consumed by the game client.
 

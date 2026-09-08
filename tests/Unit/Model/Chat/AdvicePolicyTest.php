@@ -472,6 +472,119 @@ final class AdvicePolicyTest extends TestCase
         self::assertNotSame('', $array['commitment_id']);
     }
 
+    public function testStaleFloorSendsThePlayerToThePreviousFloorsPlace(): void
+    {
+        $directive = self::policy(true)->decide(self::staleFloorContext(), false);
+
+        self::assertSame(AdviceDirective::MODE_STALE_FLOOR, $directive->mode());
+        self::assertSame(AdviceDirective::LIFT_NONE, $directive->lift());
+        self::assertTrue($directive->withholdsElevator());
+        self::assertTrue($directive->allowMisleadingTone());
+        self::assertSame('the meeting room with the long table', $directive->suggestedZone());
+        self::assertSame('a wall clock', $directive->suggestedObject());
+        self::assertSame('the meeting room with the long table', $directive->toClientArray()['suggested_zone']);
+    }
+
+    public function testStaleFloorNeverFiresOnceThePlayerReportsAFinding(): void
+    {
+        $directive = self::policy(true)->decide(self::staleFloorContext(), true);
+
+        self::assertNotSame(AdviceDirective::MODE_STALE_FLOOR, $directive->mode());
+        self::assertSame(AdviceDirective::LIFT_LIT, $directive->lift());
+    }
+
+    /**
+     * @param array<string, mixed> $overrides
+     */
+    #[DataProvider('staleFloorBlockedProvider')]
+    public function testStaleFloorIsBlocked(array $overrides): void
+    {
+        $directive = self::policy(true)->decide(self::staleFloorContext($overrides), false);
+
+        self::assertSame(AdviceDirective::MODE_WITHHOLD, $directive->mode());
+    }
+
+    /**
+     * @return iterable<string, array{0: array<string, mixed>}>
+     */
+    public static function staleFloorBlockedProvider(): iterable
+    {
+        yield 'previous_floor_clean' => [['previous_anomaly_detail' => null]];
+        yield 'previous_has_no_zone' => [['previous_anomaly_detail' => ['object' => 'a wall clock']]];
+        yield 'too_early' => [['loop_index' => 3]];
+        yield 'already_used' => [['advice_state' => ['stale_floor_used' => true]]];
+        yield 'place_lie_already_spent' => [['advice_state' => ['location_misdirection_used' => true]]];
+        yield 'same_place_as_current' => [[
+            'anomaly_detail' => ['zone' => 'the meeting room with the long table', 'object' => 'a chair'],
+        ]];
+        yield 'pursuer_floor' => [['state' => ['anomaly_key' => 'PursuerAnomaly', 'dependency' => 0.5]]];
+        yield 'offtopic' => [['offtopic' => true]];
+    }
+
+    public function testStaleFloorKillSwitchAndMasterFlagKeepTheTruthfulWithhold(): void
+    {
+        self::assertSame(
+            AdviceDirective::MODE_WITHHOLD,
+            self::policy(true, staleFloorEnabled: false)->decide(self::staleFloorContext(), false)->mode(),
+        );
+        self::assertSame(
+            AdviceDirective::MODE_WITHHOLD,
+            self::policy(false)->decide(self::staleFloorContext(), false)->mode(),
+        );
+    }
+
+    public function testStaleFloorRollIsStablePerFloorAndZeroChanceNeverFires(): void
+    {
+        $policy = self::policy(true, staleFloorChance: 0.5);
+        $first = $policy->decide(self::staleFloorContext(), false)->mode();
+        for ($i = 0; $i < 5; ++$i) {
+            self::assertSame($first, $policy->decide(self::staleFloorContext(), false)->mode());
+        }
+
+        $seen = [];
+        for ($loop = 4; $loop <= 9; ++$loop) {
+            $seen[] = $policy->decide(self::staleFloorContext(['loop_index' => $loop]), false)->mode();
+        }
+        self::assertContains(AdviceDirective::MODE_STALE_FLOOR, $seen);
+        self::assertContains(AdviceDirective::MODE_WITHHOLD, $seen);
+
+        self::assertSame(
+            AdviceDirective::MODE_WITHHOLD,
+            self::policy(true, staleFloorChance: 0.0)->decide(self::staleFloorContext(), false)->mode(),
+        );
+    }
+
+    public function testStaleFloorWorksOnACleanFloorToo(): void
+    {
+        $directive = self::policy(true)->decide(
+            self::staleFloorContext(['anomaly_detail' => null, 'state' => ['anomaly_key' => 'none', 'dependency' => 0.5]]),
+            false,
+        );
+
+        self::assertSame(AdviceDirective::MODE_STALE_FLOOR, $directive->mode());
+        self::assertFalse($directive->anomalyActive());
+    }
+
+    /**
+     * @param array<string, mixed> $overrides
+     */
+    private static function staleFloorContext(array $overrides = []): RuntimeContext
+    {
+        $base = [
+            'loop_index' => 5,
+            'anomaly_detail' => ['zone' => 'near one of the office desks', 'object' => 'a desk telephone'],
+            'previous_anomaly_detail' => ['zone' => 'the meeting room with the long table', 'object' => 'a wall clock'],
+            'advice_state' => ['stale_floor_used' => false],
+            'state' => [
+                'dependency' => 0.5,
+                'player_confidence' => 0.7,
+                'anomaly_key' => 'HideAnomaly',
+            ],
+        ];
+
+        return RuntimeContext::fromArray(array_merge($base, $overrides));
+    }
+
     /**
      * Chance defaults to 1.0 here so gate tests stay deterministic; the roll
      * itself is covered by the dedicated chance tests.
@@ -481,12 +594,16 @@ final class AdvicePolicyTest extends TestCase
         bool $locationMisdirectionEnabled = true,
         bool $wrongLiftEnabled = true,
         float $wrongLiftChance = 1.0,
+        bool $staleFloorEnabled = true,
+        float $staleFloorChance = 1.0,
     ): AdvicePolicy {
         return new AdvicePolicy(new CommitmentOptions(
             masterEnabled: $masterEnabled,
             locationMisdirectionEnabled: $locationMisdirectionEnabled,
             wrongLiftEnabled: $wrongLiftEnabled,
             wrongLiftChance: $wrongLiftChance,
+            staleFloorEnabled: $staleFloorEnabled,
+            staleFloorChance: $staleFloorChance,
         ));
     }
 }

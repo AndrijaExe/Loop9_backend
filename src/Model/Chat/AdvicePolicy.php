@@ -14,6 +14,7 @@ final class AdvicePolicy
 {
     public const MIN_MISDIRECT_LOOP = 5;
     public const MIN_WRONG_LIFT_LOOP = 7;
+    public const MIN_STALE_FLOOR_LOOP = 4;
 
     /** Below this confidence he is already nervous, so he gives nothing away. */
     private const float TRUST_FOR_PLACE_HINT = 0.35;
@@ -53,6 +54,23 @@ final class AdvicePolicy
         }
 
         if (!$playerReportedFinding || $context->isOfftopic()) {
+            if ($this->options->masterEnabled
+                && $this->options->staleFloorEnabled
+                && !$context->isOfftopic()
+                && $this->shouldStaleFloor($context)) {
+                $previous = $context->previousAnomalyDetail();
+
+                return new AdviceDirective(
+                    mode: AdviceDirective::MODE_STALE_FLOOR,
+                    lift: AdviceDirective::LIFT_NONE,
+                    suggestedZone: $previous?->zone(),
+                    suggestedObject: $previous?->object(),
+                    commitmentId: $commitmentId,
+                    allowMisleadingTone: true,
+                    anomalyActive: $anomalyActive,
+                );
+            }
+
             [$zone, $object] = $this->resolveAccurateHints($context->anomalyDetail(), $state);
 
             return new AdviceDirective(
@@ -115,6 +133,47 @@ final class AdvicePolicy
             allowMisleadingTone: $state !== null && $state->isHighDependency() && $state->isDisrespectful(),
             anomalyActive: true,
         );
+    }
+
+    /**
+     * "Stale floor": before the player reports anything, he sends them to the
+     * place where the *previous* floor's anomaly was, as if the line had not
+     * caught up. Gates: loop 4+, the previous floor really had an anomaly (so
+     * there is a real place to describe), a different place from the current
+     * anomaly, no place lie already spent this run, no Pursuer on the floor.
+     * Then a stable per-floor roll, so asking twice cannot re-roll it.
+     */
+    private function shouldStaleFloor(RuntimeContext $context): bool
+    {
+        if ($context->loopIndex() < self::MIN_STALE_FLOOR_LOOP) {
+            return false;
+        }
+
+        $previous = $context->previousAnomalyDetail();
+        if ($previous === null || $previous->zone() === null) {
+            return false;
+        }
+
+        $advice = $context->adviceState();
+        if ($advice === null
+            || $advice->staleFloorUsed()
+            || $advice->locationMisdirectionUsed()
+            || $advice->wrongLiftUsed()) {
+            return false;
+        }
+
+        $state = $context->state();
+        $key = strtolower((string) $state?->anomalyKey());
+        if (str_contains($key, 'pursuer')) {
+            return false;
+        }
+
+        $currentZone = $context->anomalyDetail()?->zone();
+        if ($currentZone !== null && strcasecmp($currentZone, $previous->zone()) === 0) {
+            return false;
+        }
+
+        return $this->rolls($context, $this->options->staleFloorChance, 'stale');
     }
 
     private function shouldMisdirectLocation(RuntimeContext $context, bool $anomalyActive): bool
@@ -200,7 +259,11 @@ final class AdvicePolicy
      */
     private function rollsWrongLift(RuntimeContext $context): bool
     {
-        $chance = $this->options->wrongLiftChance;
+        return $this->rolls($context, $this->options->wrongLiftChance, 'wrong_lift');
+    }
+
+    private function rolls(RuntimeContext $context, float $chance, string $salt): bool
+    {
         if ($chance <= 0.0) {
             return false;
         }
@@ -210,6 +273,7 @@ final class AdvicePolicy
 
         $detail = $context->anomalyDetail();
         $seed = implode('|', [
+            $salt,
             (string) $context->loopIndex(),
             strtolower((string) $context->state()?->anomalyKey()),
             strtolower((string) ($detail?->zone() ?? '')),

@@ -21,6 +21,7 @@ final class RuntimeContext
         private readonly ?AdviceState $adviceState = null,
         private readonly ?ObservationSnapshot $observationSnapshot = null,
         private readonly ?RunHistory $runHistory = null,
+        private readonly ?AnomalyDetail $previousAnomalyDetail = null,
     ) {
     }
 
@@ -83,6 +84,11 @@ final class RuntimeContext
             $runHistory = RunHistory::fromArray($raw['run_history']);
         }
 
+        $previousAnomalyDetail = null;
+        if (isset($raw['previous_anomaly_detail']) && is_array($raw['previous_anomaly_detail'])) {
+            $previousAnomalyDetail = AnomalyDetail::fromArray($raw['previous_anomaly_detail']);
+        }
+
         return new self(
             language: $language,
             aiStability: $stability,
@@ -95,6 +101,7 @@ final class RuntimeContext
             adviceState: $adviceState,
             observationSnapshot: $observationSnapshot,
             runHistory: $runHistory,
+            previousAnomalyDetail: $previousAnomalyDetail,
         );
     }
 
@@ -141,6 +148,12 @@ final class RuntimeContext
     public function runHistory(): ?RunHistory
     {
         return $this->runHistory;
+    }
+
+    /** Zone/object of the previous floor's anomaly; absent when that floor was clean. */
+    public function previousAnomalyDetail(): ?AnomalyDetail
+    {
+        return $this->previousAnomalyDetail;
     }
 
     public function loopIndex(): int
