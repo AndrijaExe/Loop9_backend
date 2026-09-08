@@ -32,6 +32,8 @@ final class RunTelemetryController
         'merged_memory',
         'the_replacement',
         'paranoid_survivor',
+        // 1.1 secret ending (client ≥ 1.1 only).
+        'the_exit',
     ];
 
     private const MAX_COUNTER = 100000;

@@ -25,6 +25,7 @@ final class RunHistory
         'paranoid_survivor',
         'merged_memory',
         'the_replacement',
+        'the_exit',
     ];
 
     public const TONES = ['warm', 'neutral', 'cold'];

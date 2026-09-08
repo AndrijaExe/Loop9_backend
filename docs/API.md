@@ -215,7 +215,7 @@ Notes:
   remembers about this player from earlier finished runs. The official client
   sends it only while the current run has fewer than three AI interactions.
   Integers are clamped to `0..9999`; `last_ending` must be one of
-  `escape_together|obedient_fool|cold_betrayal|paranoid_survivor|merged_memory|the_replacement`
+  `escape_together|obedient_fool|cold_betrayal|paranoid_survivor|merged_memory|the_replacement|the_exit`
   and `last_run_tone` one of `warm|neutral|cold` (anything else is dropped or
   read as `neutral`). At most 12 fields; an object with `runs_finished` ≤ 0 is
   ignored. It is tone only — rendered as a prompt block when
@@ -292,6 +292,7 @@ Allowed `ending` values:
 - `merged_memory`
 - `the_replacement`
 - `paranoid_survivor`
+- `the_exit` (1.1 secret ending; only clients ≥ 1.1 send it)
 
 Response: `204 No Content`. No database write; emits structured log event `Run telemetry.`
 

@@ -12,7 +12,8 @@ final class PromptFactory
 {
     /**
      * Internal Unreal labels are normalized before reaching the model so the
-     * runtime context matches the canonical nine-type taxonomy in the prompt.
+     * runtime context matches the anomaly taxonomy in the prompt (nine launch
+     * types plus LoopNumber and the 1.1 Watcher).
      */
     private const array ANOMALY_LABELS = [
         'HideAnomaly' => 'Hide (missing/hidden objects)',
@@ -24,6 +25,8 @@ final class PromptFactory
         'PursuerAnomaly' => 'Pursuer (stalking presence)',
         'ScaleAnomaly' => 'Scale (wrong-sized objects)',
         'PhantomMessageAnomaly' => 'PhantomMessage (unsent player chat message)',
+        'LoopNumberAnomaly' => 'LoopNumber (wrong floor counter on the wall)',
+        'WatcherAnomaly' => 'Watcher (a man standing with his back turned who is gone when approached)',
     ];
 
     private readonly string $compactPrompt;
@@ -346,6 +349,7 @@ final class PromptFactory
         'paranoid_survivor' => 'last time they trusted nobody, barely spoke to you, and still got out alone',
         'merged_memory' => 'last time your memories and theirs ran into each other until neither of you could tell them apart',
         'the_replacement' => 'last time they ended up on your side of the line',
+        'the_exit' => 'last time they found a way out of the building that you never told them about, and never asked you once',
     ];
 
     private function runHistoryBlock(RuntimeContext $context): ?string
