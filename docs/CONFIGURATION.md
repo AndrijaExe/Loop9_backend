@@ -48,16 +48,28 @@ Burst chat limit (`20/min`) and Steam auth (`10/min`) / telemetry (`30/h`) are c
 | `AI_SYSTEM_PROMPT` | Optional override; otherwise files in `config/prompts` |
 | `AI_TLS_VERIFY` | Default `true` |
 | `AI_COMMITMENT_ENABLED` | Enables per-run location misdirection and late wrong-lift. Production is `true`; set `false` only to freeze the truthful path. |
-| `AI_COMMITMENT_LOCATION_ENABLED` | Independent location-misdirection kill switch. |
-| `AI_COMMITMENT_WRONG_LIFT_ENABLED` | Independent late wrong-lift kill switch; turn this off first if ending balance shifts. |
-| `AI_OBSERVATION_CONTEXT_ENABLED` | Enables bounded observation narration in prompts. Default `false`; the request field remains accepted and parsed while disabled. |
+| `AI_COMMITMENT_LOCATION_ENABLED` | Independent location-misdirection kill switch. Production `true`. |
+| `AI_COMMITMENT_WRONG_LIFT_ENABLED` | Independent late wrong-lift kill switch; turn this off first if ending balance shifts. Production `true`. |
+| `AI_COMMITMENT_WRONG_LIFT_CHANCE` | `0.0`–`1.0`, default `0.5`. Per-floor chance of the late wrong lift when the player leans on him (surrendered the decision or followed his last lift call) but did not walk the full planted-location → accusation → surrender arc; that arc always lies. Same floor never re-rolls. `0` = only the full arc lies, `1` = every eligible floor lies. Clamped on load. |
+| `AI_OBSERVATION_CONTEXT_ENABLED` | Enables bounded observation narration in prompts. Production `true` since 07.09.2026 (zone volumes ship in the `v1.0.5` cook); the request field remains accepted and parsed while disabled. |
 
 Render does not copy committed `.env` defaults into its Environment UI. Add
-these flags explicitly in Render when they must be visible/editable there.
-In particular, enabling observation narration in production requires setting
-`AI_OBSERVATION_CONTEXT_ENABLED=true` in Render and restarting/redeploying;
-editing local `.env` does not auto-sync. Render values override committed
-defaults.
+these flags explicitly in Render when they must be visible/editable there,
+and keep the committed `.env` in step with what Render actually runs so a
+fresh deploy without the Render key cannot silently flip behaviour. Render
+values always override committed defaults. Current production set:
+
+```text
+AI_COMMITMENT_ENABLED=true
+AI_COMMITMENT_LOCATION_ENABLED=true
+AI_COMMITMENT_WRONG_LIFT_ENABLED=true
+AI_COMMITMENT_WRONG_LIFT_CHANCE=0.5
+AI_OBSERVATION_CONTEXT_ENABLED=true
+```
+
+Tuning order if the ending mix drifts after launch: lower
+`AI_COMMITMENT_WRONG_LIFT_CHANCE` first (no deploy needed), then the
+wrong-lift kill switch, then location.
 
 ### AI fallbacks
 

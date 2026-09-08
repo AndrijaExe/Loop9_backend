@@ -38,7 +38,7 @@ validation; `PromptFactory` only renders it. Production runs with
 | `accurate_hint` / `accurate_lift` | Normal truthful path |
 | `misdirect_location` | Once from loop 5+, moderate+ dependency, valid `decoy_zone`, not Pursuer/Phantom |
 | `confrontation` | Once after the client confirms the planted contradiction was exposed; defensive response, no new lift/location |
-| `wrong_lift` | Once from loop 7+, after location lie + later `SUSPICION=1` + prior surrender + high dependency; forces dark on an active non-Pursuer anomaly |
+| `wrong_lift` | Once from loop 7+, high dependency, active non-Pursuer anomaly, and leverage: the player surrendered the decision (`pending_decision_surrender`) or followed his last lift call (`followed_last_lift_advice`). The full arc (location lie → `SUSPICION=1` → surrender) always fires; any other eligible floor is one stable per-floor roll against `AI_COMMITMENT_WRONG_LIFT_CHANCE` (default 0.5). Forces dark |
 
 Gateway checks: withheld replies must not leak a lift name; forced `wrong_lift`
 must include the expected localized dark elevator wording (one fallback try).
@@ -52,6 +52,11 @@ cleared on `ResetRunState`, never saved to Cloud or backend storage.
 also have independent `AI_COMMITMENT_LOCATION_ENABLED` and
 `AI_COMMITMENT_WRONG_LIFT_ENABLED` switches. Turning either child switch off
 falls back to truthful guidance without changing the client contract.
+
+The wrong-lift roll is seeded from loop index, anomaly key, authored zone /
+object and decoy zone — nothing the player can read — so asking twice on the
+same floor gives the same answer, while a different floor or anomaly draw
+re-rolls. No per-player state is stored for it.
 
 ## Bounded observation context
 

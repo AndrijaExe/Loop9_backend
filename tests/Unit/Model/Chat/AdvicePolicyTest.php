@@ -268,28 +268,180 @@ final class AdvicePolicyTest extends TestCase
             8,
             0.7,
         ];
-        yield 'no_contradiction' => [
-            [
-                'location_misdirection_used' => true,
-                'contradiction_exposed' => false,
-                'pending_decision_surrender' => true,
-                'wrong_lift_used' => false,
-                'confrontation_response_used' => true,
-            ],
-            8,
-            0.7,
-        ];
-        yield 'no_surrender' => [
+        yield 'no_leverage' => [
             [
                 'location_misdirection_used' => true,
                 'contradiction_exposed' => true,
                 'pending_decision_surrender' => false,
+                'followed_last_lift_advice' => false,
                 'wrong_lift_used' => false,
                 'confrontation_response_used' => true,
             ],
             8,
             0.7,
         ];
+    }
+
+    public function testSurrenderAloneCanEarnWrongLiftWithoutPlantedLocation(): void
+    {
+        $directive = self::policy(true, wrongLiftChance: 1.0)->decide(
+            RuntimeContext::fromArray([
+                'loop_index' => 7,
+                'anomaly_detail' => ['zone' => 'the archive room'],
+                'advice_state' => [
+                    'location_misdirection_used' => false,
+                    'contradiction_exposed' => false,
+                    'pending_decision_surrender' => true,
+                    'wrong_lift_used' => false,
+                ],
+                'state' => [
+                    'dependency' => 0.7,
+                    'player_confidence' => 0.6,
+                    'anomaly_key' => 'MoveAnomaly',
+                ],
+            ]),
+            true,
+        );
+
+        self::assertSame(AdviceDirective::MODE_WRONG_LIFT, $directive->mode());
+        self::assertSame(AdviceDirective::LIFT_DARK, $directive->lift());
+    }
+
+    public function testFollowingHisLastLiftCallIsEnoughLeverage(): void
+    {
+        $directive = self::policy(true, wrongLiftChance: 1.0)->decide(
+            RuntimeContext::fromArray([
+                'loop_index' => 8,
+                'anomaly_detail' => ['zone' => 'the archive room'],
+                'advice_state' => [
+                    'pending_decision_surrender' => false,
+                    'followed_last_lift_advice' => true,
+                    'wrong_lift_used' => false,
+                ],
+                'state' => [
+                    'dependency' => 0.65,
+                    'player_confidence' => 0.6,
+                    'anomaly_key' => 'HideAnomaly',
+                ],
+            ]),
+            true,
+        );
+
+        self::assertSame(AdviceDirective::MODE_WRONG_LIFT, $directive->mode());
+    }
+
+    public function testZeroChanceStillHonoursTheFullExposedArc(): void
+    {
+        $policy = self::policy(true, wrongLiftChance: 0.0);
+
+        $fullArc = $policy->decide(
+            RuntimeContext::fromArray([
+                'loop_index' => 8,
+                'anomaly_detail' => ['zone' => 'the archive room'],
+                'advice_state' => [
+                    'location_misdirection_used' => true,
+                    'contradiction_exposed' => true,
+                    'pending_decision_surrender' => true,
+                    'wrong_lift_used' => false,
+                    'confrontation_response_used' => true,
+                ],
+                'state' => [
+                    'dependency' => 0.7,
+                    'player_confidence' => 0.5,
+                    'anomaly_key' => 'MoveAnomaly',
+                ],
+            ]),
+            true,
+        );
+        self::assertSame(AdviceDirective::MODE_WRONG_LIFT, $fullArc->mode());
+
+        $surrenderOnly = $policy->decide(
+            RuntimeContext::fromArray([
+                'loop_index' => 8,
+                'anomaly_detail' => ['zone' => 'the archive room'],
+                'advice_state' => [
+                    'pending_decision_surrender' => true,
+                    'wrong_lift_used' => false,
+                ],
+                'state' => [
+                    'dependency' => 0.7,
+                    'player_confidence' => 0.5,
+                    'anomaly_key' => 'MoveAnomaly',
+                ],
+            ]),
+            true,
+        );
+        self::assertSame(AdviceDirective::MODE_ACCURATE_HINT, $surrenderOnly->mode());
+        self::assertSame(AdviceDirective::LIFT_LIT, $surrenderOnly->lift());
+    }
+
+    public function testWrongLiftRollIsStablePerFloorAndVariesAcrossFloors(): void
+    {
+        $policy = self::policy(true, wrongLiftChance: 0.5);
+        $decideAt = static function (int $loop, string $key, string $zone) use ($policy): string {
+            return $policy->decide(
+                RuntimeContext::fromArray([
+                    'loop_index' => $loop,
+                    'anomaly_detail' => ['zone' => $zone],
+                    'advice_state' => ['pending_decision_surrender' => true, 'wrong_lift_used' => false],
+                    'state' => ['dependency' => 0.8, 'player_confidence' => 0.6, 'anomaly_key' => $key],
+                ]),
+                true,
+            )->mode();
+        };
+
+        // Asking twice on the same floor never re-rolls.
+        self::assertSame(
+            $decideAt(7, 'MoveAnomaly', 'the archive room'),
+            $decideAt(7, 'MoveAnomaly', 'the archive room'),
+        );
+
+        // Across floors and anomaly draws both outcomes occur: he is not a coin
+        // that always lands on the lie.
+        $modes = [];
+        foreach ([7, 8, 9] as $loop) {
+            foreach (['MoveAnomaly', 'HideAnomaly', 'LightFlickerAnomaly', 'MaterialSwapAnomaly'] as $key) {
+                foreach (['the archive room', 'the north corridor', 'near the office desks'] as $zone) {
+                    $modes[$decideAt($loop, $key, $zone)] = true;
+                }
+            }
+        }
+        self::assertArrayHasKey(AdviceDirective::MODE_WRONG_LIFT, $modes);
+        self::assertArrayHasKey(AdviceDirective::MODE_ACCURATE_HINT, $modes);
+    }
+
+    public function testPursuerNeverGetsWrongLift(): void
+    {
+        $directive = self::policy(true, wrongLiftChance: 1.0)->decide(
+            RuntimeContext::fromArray([
+                'loop_index' => 8,
+                'advice_state' => [
+                    'location_misdirection_used' => true,
+                    'contradiction_exposed' => true,
+                    'pending_decision_surrender' => true,
+                    'wrong_lift_used' => false,
+                    'confrontation_response_used' => true,
+                ],
+                'state' => [
+                    'dependency' => 0.9,
+                    'player_confidence' => 0.5,
+                    'anomaly_key' => 'PursuerAnomaly',
+                ],
+            ]),
+            true,
+        );
+
+        self::assertNotSame(AdviceDirective::MODE_WRONG_LIFT, $directive->mode());
+    }
+
+    public function testWrongLiftChanceIsClampedToUnitRange(): void
+    {
+        self::assertSame(1.0, (new CommitmentOptions(true, true, true, 7.0))->wrongLiftChance);
+        self::assertSame(0.0, (new CommitmentOptions(true, true, true, -1.0))->wrongLiftChance);
+        self::assertSame(
+            CommitmentOptions::DEFAULT_WRONG_LIFT_CHANCE,
+            (new CommitmentOptions(true, true, true, NAN))->wrongLiftChance,
+        );
     }
 
     public function testCleanFloorFindingPinsDarkLift(): void
@@ -320,15 +472,21 @@ final class AdvicePolicyTest extends TestCase
         self::assertNotSame('', $array['commitment_id']);
     }
 
+    /**
+     * Chance defaults to 1.0 here so gate tests stay deterministic; the roll
+     * itself is covered by the dedicated chance tests.
+     */
     private static function policy(
         bool $masterEnabled,
         bool $locationMisdirectionEnabled = true,
         bool $wrongLiftEnabled = true,
+        float $wrongLiftChance = 1.0,
     ): AdvicePolicy {
         return new AdvicePolicy(new CommitmentOptions(
             masterEnabled: $masterEnabled,
             locationMisdirectionEnabled: $locationMisdirectionEnabled,
             wrongLiftEnabled: $wrongLiftEnabled,
+            wrongLiftChance: $wrongLiftChance,
         ));
     }
 }

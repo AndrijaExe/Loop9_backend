@@ -151,6 +151,15 @@ final class AdvicePolicy
         return true;
     }
 
+    /**
+     * Late wrong lift. Hard gates: loop 7+, an active non-Pursuer anomaly, high
+     * dependency, not spent yet. On top of that he needs leverage — the player
+     * either just handed him the decision or followed his last lift call. The
+     * exposed-and-still-obedient arc (planted location, accusation, surrender)
+     * always pays off; every other eligible floor is a deterministic per-floor
+     * roll against `wrongLiftChance`, so the same floor cannot be re-rolled by
+     * asking twice and a dependent player is never guaranteed a lie.
+     */
     private function shouldWrongLift(RuntimeContext $context, bool $anomalyActive): bool
     {
         if (!$anomalyActive || $context->loopIndex() < self::MIN_WRONG_LIFT_LOOP) {
@@ -158,14 +167,7 @@ final class AdvicePolicy
         }
 
         $advice = $context->adviceState();
-        if ($advice === null) {
-            return false;
-        }
-
-        if ($advice->wrongLiftUsed()
-            || !$advice->locationMisdirectionUsed()
-            || !$advice->contradictionExposed()
-            || !$advice->pendingDecisionSurrender()) {
+        if ($advice === null || $advice->wrongLiftUsed()) {
             return false;
         }
 
@@ -179,7 +181,45 @@ final class AdvicePolicy
             return false;
         }
 
-        return true;
+        if (!$advice->pendingDecisionSurrender() && !$advice->followedLastLiftAdvice()) {
+            return false;
+        }
+
+        if ($advice->locationMisdirectionUsed()
+            && $advice->contradictionExposed()
+            && $advice->pendingDecisionSurrender()) {
+            return true;
+        }
+
+        return $this->rollsWrongLift($context);
+    }
+
+    /**
+     * Stable per-floor roll: same loop, anomaly and place → same outcome for the
+     * whole floor visit. Different floors and different anomaly draws re-roll.
+     */
+    private function rollsWrongLift(RuntimeContext $context): bool
+    {
+        $chance = $this->options->wrongLiftChance;
+        if ($chance <= 0.0) {
+            return false;
+        }
+        if ($chance >= 1.0) {
+            return true;
+        }
+
+        $detail = $context->anomalyDetail();
+        $seed = implode('|', [
+            (string) $context->loopIndex(),
+            strtolower((string) $context->state()?->anomalyKey()),
+            strtolower((string) ($detail?->zone() ?? '')),
+            strtolower((string) ($detail?->object() ?? '')),
+            strtolower((string) ($context->decoyZone() ?? '')),
+        ]);
+
+        $bucket = (crc32($seed) & 0x7fffffff) % 10000;
+
+        return $bucket < (int) round($chance * 10000);
     }
 
     /**

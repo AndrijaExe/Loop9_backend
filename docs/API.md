@@ -180,6 +180,9 @@ Notes:
   The backend never invents a room; without a decoy it cannot plant a wrong location.
 - `advice_state` is structured per-run memory from the client (never raw chat).
   Deception phases run only while `AI_COMMITMENT_ENABLED=true`.
+  `pending_decision_surrender` and `followed_last_lift_advice` are the two
+  leverage flags for the late wrong lift; a client that never sets either
+  never receives it.
 - `observation_snapshot` is optional and backward compatible. Its encoded JSON
   must be at most 2048 bytes. It carries at most eight recent events and eight
   visited zone IDs. Allowed event types are `zone_entered`, `object_inspected`,

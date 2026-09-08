@@ -47,6 +47,7 @@ services:
             $masterEnabled: '%env(bool:AI_COMMITMENT_ENABLED)%'
             $locationMisdirectionEnabled: '%env(bool:AI_COMMITMENT_LOCATION_ENABLED)%'
             $wrongLiftEnabled: '%env(bool:AI_COMMITMENT_WRONG_LIFT_ENABLED)%'
+            $wrongLiftChance: '%env(float:AI_COMMITMENT_WRONG_LIFT_CHANCE)%'
 
     App\Adapter\AI\OpenAiCompatibleHttpClientInterface:
         alias: App\Adapter\AI\OpenAiCompatibleHttpClient
