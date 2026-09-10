@@ -273,6 +273,7 @@ Request:
   "location_misdirection_used": true,
   "visited_suggested_decoy": true,
   "contradiction_exposed": true,
+  "stale_floor_used": true,
   "decoy_visit_seconds": 8.5,
   "lift_advice_count": 3,
   "followed_lift_advice_count": 2,
@@ -282,6 +283,8 @@ Request:
 ```
 
 Commitment fields are optional for older clients and default to false/zero.
+`stale_floor_used` is the 1.1 previous-floor slip (counter `run.commitment.stale_floor`);
+v1.0.5 clients never send it.
 They are run-level aggregates only—no chat, coordinates, route, or zone name.
 
 Allowed `ending` values:

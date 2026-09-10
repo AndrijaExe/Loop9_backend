@@ -35,9 +35,11 @@ final class Event
     public const RUN_CONTRADICTION_EXPOSED = 'run.commitment.contradiction_exposed';
     public const RUN_WRONG_LIFT_ADVISED = 'run.commitment.wrong_lift_advised';
     public const RUN_WRONG_LIFT_FOLLOWED = 'run.commitment.wrong_lift_followed';
+    /** 1.1: he described the previous floor's place as this floor's, once per run. */
+    public const RUN_STALE_FLOOR = 'run.commitment.stale_floor';
 
     /**
-     * Endings are a closed set of six ids, so counting them by name cannot grow unbounded.
+     * Endings are a closed set of seven ids, so counting them by name cannot grow unbounded.
      */
     public static function runEnding(string $ending): string
     {

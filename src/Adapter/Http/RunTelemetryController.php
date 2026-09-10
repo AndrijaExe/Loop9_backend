@@ -78,6 +78,7 @@ final class RunTelemetryController
                 'locationMisdirectionUsed' => $payload['location_misdirection_used'],
                 'visitedSuggestedDecoy' => $payload['visited_suggested_decoy'],
                 'contradictionExposed' => $payload['contradiction_exposed'],
+                'staleFloorUsed' => $payload['stale_floor_used'],
                 'decoyVisitSeconds' => $payload['decoy_visit_seconds'],
                 'liftAdviceCount' => $payload['lift_advice_count'],
                 'followedLiftAdviceCount' => $payload['followed_lift_advice_count'],
@@ -96,6 +97,9 @@ final class RunTelemetryController
         }
         if ($payload['contradiction_exposed']) {
             $this->counters->increment(Event::RUN_CONTRADICTION_EXPOSED);
+        }
+        if ($payload['stale_floor_used']) {
+            $this->counters->increment(Event::RUN_STALE_FLOOR);
         }
         if ($payload['wrong_lift_advice_count'] > 0) {
             $this->counters->increment(Event::RUN_WRONG_LIFT_ADVISED);
@@ -120,6 +124,7 @@ final class RunTelemetryController
      *   location_misdirection_used: bool,
      *   visited_suggested_decoy: bool,
      *   contradiction_exposed: bool,
+     *   stale_floor_used: bool,
      *   decoy_visit_seconds: ?float,
      *   lift_advice_count: int,
      *   followed_lift_advice_count: int,
@@ -159,6 +164,7 @@ final class RunTelemetryController
             'location_misdirection_used' => $this->boolean($data['location_misdirection_used'] ?? false),
             'visited_suggested_decoy' => $this->boolean($data['visited_suggested_decoy'] ?? false),
             'contradiction_exposed' => $this->boolean($data['contradiction_exposed'] ?? false),
+            'stale_floor_used' => $this->boolean($data['stale_floor_used'] ?? false),
             'decoy_visit_seconds' => $this->nullableDuration($data['decoy_visit_seconds'] ?? null),
             'lift_advice_count' => $this->clampCounter($data['lift_advice_count'] ?? 0),
             'followed_lift_advice_count' => $this->clampCounter($data['followed_lift_advice_count'] ?? 0),
