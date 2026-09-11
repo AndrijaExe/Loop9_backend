@@ -12,7 +12,8 @@ final class PromptFactory
 {
     /**
      * Internal Unreal labels are normalized before reaching the model so the
-     * runtime context matches the canonical nine-type taxonomy in the prompt.
+     * runtime context matches the twelve-type taxonomy in the prompt (nine launch
+     * types, LoopNumber since v1.0.6, and the v1.0.7 Watcher and Creep).
      */
     private const array ANOMALY_LABELS = [
         'HideAnomaly' => 'Hide (missing/hidden objects)',
@@ -24,6 +25,9 @@ final class PromptFactory
         'PursuerAnomaly' => 'Pursuer (stalking presence)',
         'ScaleAnomaly' => 'Scale (wrong-sized objects)',
         'PhantomMessageAnomaly' => 'PhantomMessage (unsent player chat message)',
+        'LoopNumberAnomaly' => 'LoopNumber (wrong floor counter on the wall)',
+        'WatcherAnomaly' => 'Watcher (a man standing with his back turned who is gone when approached)',
+        'CreepAnomaly' => 'Creep (an object slowly moving on its own, about a centimetre a second)',
     ];
 
     private readonly string $compactPrompt;

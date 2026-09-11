@@ -28,7 +28,7 @@ final class PromptFactoryTest extends TestCase
         foreach ([1, 4] as $loopIndex) {
             $prompt = $this->factory->buildSystemPrompt($loopIndex);
 
-            self::assertStringContainsString('exactly nine', $prompt);
+            self::assertStringContainsString('exactly twelve', $prompt);
             self::assertStringContainsString('distrust', $prompt);
             self::assertStringContainsString('asking what a sound/object is', $prompt);
             self::assertStringContainsString('surrenders the decision', $prompt);
